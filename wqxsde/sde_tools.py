@@ -107,17 +107,19 @@ def edit_table(df, sde_table, fieldnames=None,
 
             for j in range(len(rowlist)):
                 objid += 1
-                strfill = ["("]
+                strfill = []
                 # This loop deals with different data types and NULL values
                 for k in range(len(rowlist[j])):
                     if pd.isna(rowlist[j][k]):
-                        strfill.append("NULL")
+                        strvar = "NULL"
                     elif isinstance(rowlist[j][k], (int, float)):
-                        strfill.append("{:}".format(rowlist[j][k]))
+                        strvar = "{:}".format(rowlist[j][k])
                     else:
-                        strfill.append("'{:}'".format(rowlist[j][k]))
-
-                strfill.append("{:},)".format(objid))
+                        strvar = "'{:}'".format(rowlist[j][k])
+                    if k == 0:
+                        strvar = "(" + strvar
+                    strfill.append(strvar)
+                strfill.append(",{:})".format(objid))
                 sqlendlist.append(",".join(map(str, strfill)))
 
             sqlend = "{:}".format(",".join(sqlendlist))
