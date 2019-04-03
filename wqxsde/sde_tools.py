@@ -8,7 +8,6 @@ chem_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results"
 activities_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Activities"
 wqx_results_filename = "G:/My Drive/WORK/NGWMN/Database/ResultsExport.xlsx"
 
-
 def edit_table(df, fieldnames=None,
                sde_table="UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results",
                enviro="C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/UGS_SDE.sde"):
@@ -104,7 +103,7 @@ def fast_sde_to_df(enviro, table):
     # Perform the update
     sqlid = "SELECT * FROM {:};".format(table)
 
-    sqcols = """SELECT * FROM UGGP.UGGPADMIN.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = N'{:}'"""
+    #sqcols = """SELECT * FROM UGGP.UGGPADMIN.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = N'{:}'"""
 
     sql = egdb_conn.execute(sqlid)
     # cols = egdb_conn.execute(sqcols)
@@ -148,9 +147,9 @@ def compare_sde_wqx(wqx_results_filename, enviro, chem_table_name, table_type='c
     # iterate input table
     with arcpy.da.UpdateCursor(chem_table_name, ['OID@', 'inwqx']) as tcurs:
         for row in tcurs:
+            # index location row[2]=SHAPE@X and row[1]=SHAPE@Y that matches index locations in dictionary
             if row[0] in objtable:
-                row[
-                    1] = 1  # index location row[2]=SHAPE@X and row[1]=SHAPE@Y that matches index locations in dictionary
+                row[1] = 1
                 tcurs.updateRow(row)
 
     sde_chem_table = fast_sde_to_df(enviro, chem_table_name)
@@ -181,6 +180,7 @@ def table_to_pandas_dataframe(table, field_names=None, query=None, sql_sn=(None,
 
     # return the pandas data frame
     return df
+
 
 def get_field_names(table):
     read_descr = arcpy.Describe(table)
@@ -257,6 +257,21 @@ class ProcessStateLabText(object):
                          'Units': 'ResultUnit',
                          'Analysis Date': 'AnalysisStartDate'}
 
+        self.proj_name_matches = {'Arches Monitoring Wells': 'UAMW',
+                                  'Bryce': 'UBCW',
+                                  'Castle Valley': 'CAVW',
+                                  'GSL Chem': 'GSLCHEM',
+                                  'Juab Valley': 'UJVW',
+                                  'Mills/Mona Wetlands': 'MMWET',
+                                  'Monroe Septic': 'UMSW',
+                                  'Ogden Valley': 'UOVW',
+                                  'Round Valley': 'URVH',
+                                  'Snake Valley': 'USVW', 'Snake Valley Wetlands': 'SVWET',
+                                  'Tule Valley Wetlands': 'TVWET', 'UGS-NGWMN': 'UNGWMN',
+                                  'WRI - Grouse Creek': 'UWRIG',
+                                  'WRI - Montezuma': 'UWRIM',
+                                  'WRI - Tintic Valley': 'UWRIT'}
+
     def run_calcs(self):
         matches_dict = self.get_sample_matches()
         state_lab_chem = self.state_lab_chem
@@ -311,20 +326,6 @@ class ProcessStateLabText(object):
 
     def get_proj_match(self):
         stations = self.pull_sde_stations()
-        self.proj_name_matches = {'Arches Monitoring Wells': 'UAMW',
-                                  'Bryce': 'UBCW',
-                                  'Castle Valley': 'CAVW',
-                                  'GSL Chem': 'GSLCHEM',
-                                  'Juab Valley': 'UJVW',
-                                  'Mills/Mona Wetlands': 'MMWET',
-                                  'Monroe Septic': 'UMSW',
-                                  'Ogden Valley': 'UOVW',
-                                  'Round Valley': 'URVH',
-                                  'Snake Valley': 'USVW', 'Snake Valley Wetlands': 'SVWET',
-                                  'Tule Valley Wetlands': 'TVWET', 'UGS-NGWMN': 'UNGWMN',
-                                  'WRI - Grouse Creek': 'UWRIG',
-                                  'WRI - Montezuma': 'UWRIM',
-                                  'WRI - Tintic Valley': 'UWRIT'}
 
         projectmatch = stations[['LocationID', 'QWNetworkName']].set_index('LocationID').to_dict()['QWNetworkName']
 
