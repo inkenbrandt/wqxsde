@@ -2,14 +2,66 @@ import pandas as pd
 import numpy as np
 import arcpy
 
-# define environ
-enviro = "C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/Connection to DEFAULT@uggp.agrc.utah.gov.sde"
-chem_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results"
-activities_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Activities"
-wqx_results_filename = "G:/My Drive/WORK/NGWMN/Database/ResultsExport.xlsx"
 
-def edit_table(df, fieldnames=None,
-               sde_table="UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results",
+# define environ
+class GetPaths():
+    def __init__(self):
+        self.enviro = "C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/Connection to DEFAULT@uggp.agrc.utah.gov.sde"
+        self.chemistry_table = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results"
+        self.activities_table = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Activities"
+        self.stations_table = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Locations"
+
+
+
+
+class SDEStationstoWQX(object):
+
+    def __init__(self, sde_stat_table, save_dir):
+        self.import_config_link = "https://cdx.epa.gov/WQXWeb/ImportConfigurationDetail.aspx?mode=import&impcfg_uid=6441"
+        sde_stat_import = sde_stat_table[sde_stat_table['inwqx'] == 0]
+        sde_stat_import = sde_stat_import.reset_index()
+        sde_stat_import['TribalLandInd'] = 'No'
+        sde_stat_import['TribalLandName'] = None
+        sde_stat_import = sde_stat_import.apply(lambda x: self.get_context(x), 1)
+        self.stat_col_order = self.get_stat_col_order()
+        sde_stat_import = sde_stat_import[self.stat_col_order]
+        sde_stat_import = sde_stat_import[sde_stat_import['LocationType'] != 'Barometer']
+        self.sde_stat_import = sde_stat_import.sort_values("LocationID")
+        self.save_dir = save_dir
+
+    def save_file(self):
+        self.sde_stat_import.to_csv(self.save_dir + "/stations_{:%Y%m%d}.csv".format(pd.datetime.today()), index=False)
+
+
+    def get_stat_col_order(self):
+        stat_col_import_order = ['LocationID', 'LocationName', 'LocationType', 'HUC8', 'HUC12',
+                                 'TribalLandInd', 'TribalLandName', 'Latitude', 'Longitude',
+                                 'HorizontalCollectionMethod', 'HorizontalCoordRefSystem',
+                                 'State', 'County',
+                                 'VerticalMeasure', 'VerticalUnit', 'VerticalCoordRefSystem',
+                                 'VerticalCollectionMethod',
+                                 'AltLocationID', 'AltLocationContext',
+                                 'WellType', 'WellDepth', 'WellDepthMeasureUnit', 'AquiferName']
+        return stat_col_import_order
+
+    def get_context(self, df):
+        if pd.isnull(df['USGS_ID']):
+            if pd.isnull(df['WIN']):
+                if pd.isnull(df['WRNum']):
+                    df['AltLocationContext'] = None
+                    df['AltLocationID'] = None
+                else:
+                    df['AltLocationContext'] = 'Utah Water Rights Number'
+                    df['AltLocationID'] = df['WRNum']
+            else:
+                df['AltLocationContext'] = 'Utah Well ID'
+                df['AltLocationID'] = df['WIN']
+        else:
+            df['AltLocationContext'] = 'USGS ID'
+            df['AltLocationID'] = df['USGS_ID']
+        return df
+
+def edit_table(df, sde_table, fieldnames=None,
                enviro="C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/UGS_SDE.sde"):
     """
     this function will append rows to an existing SDE table from a pandas dataframe. It requires editing privledges.
@@ -65,12 +117,12 @@ def edit_table(df, fieldnames=None,
                     else:
                         strfill.append("'{:}'".format(rowlist[j][k]))
 
-                strfill.append(",{:})".format(objid))
+                strfill.append("{:},)".format(objid))
                 sqlendlist.append(",".join(map(str, strfill)))
 
             sqlend = "{:}".format(",".join(sqlendlist))
             sql = sqlbeg + sqlend
-
+            print(sql)
             egdb_return = egdb_conn.execute(sql)
 
             # If the update completed successfully, commit the changes.  If not, rollback.
@@ -89,28 +141,6 @@ def edit_table(df, fieldnames=None,
     except Exception as err:
         print(err)
 
-
-def fast_sde_to_df(enviro, table):
-    """
-    converts an SDE table to a Pandas Dataframe
-    :param enviro: file location or sde connection file location of table
-    :param table: table with chemistry data in SDE
-    :return:
-    """
-    egdb_conn = arcpy.ArcSDESQLExecute(enviro)
-    egdb_conn.startTransaction()
-    # print("Transaction started...")
-    # Perform the update
-    sqlid = "SELECT * FROM {:};".format(table)
-
-    #sqcols = """SELECT * FROM UGGP.UGGPADMIN.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = N'{:}'"""
-
-    sql = egdb_conn.execute(sqlid)
-    # cols = egdb_conn.execute(sqcols)
-    cols = [f.name for f in arcpy.ListFields(table)]
-    return pd.DataFrame(sql, columns=cols)
-
-
 def compare_sde_wqx(wqx_results_filename, enviro, chem_table_name, table_type='chem'):
     """
     compares unique rows in an SDE chem table to that of a WQX download
@@ -122,10 +152,8 @@ def compare_sde_wqx(wqx_results_filename, enviro, chem_table_name, table_type='c
     arcpy.env.workspace = enviro
 
     wqx_chem_table = pd.read_excel(wqx_results_filename)
-    try:
-        sde_chem_table = fast_sde_to_df(enviro, chem_table_name)
-    except:
-        sde_chem_table = table_to_pandas_dataframe(chem_table_name)
+
+    sde_chem_table = table_to_pandas_dataframe(chem_table_name)
 
     if table_type == 'chem':
         wqx_chem_table['uniqueid'] = wqx_chem_table[['Monitoring Location ID', 'Activity ID', 'Characteristic']].apply(
@@ -152,7 +180,7 @@ def compare_sde_wqx(wqx_results_filename, enviro, chem_table_name, table_type='c
                 row[1] = 1
                 tcurs.updateRow(row)
 
-    sde_chem_table = fast_sde_to_df(enviro, chem_table_name)
+    sde_chem_table = table_to_pandas_dataframe(chem_table_name)
     return wqx_chem_table, sde_chem_table
 
 def table_to_pandas_dataframe(table, field_names=None, query=None, sql_sn=(None, None)):
@@ -193,13 +221,13 @@ def get_field_names(table):
 
 class ProcessStateLabText(object):
 
-    def __init__(self, file_path, save_path, sample_matches_file, schema_file_path,
-                 enviro="C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/Connection to DEFAULT@uggp.agrc.utah.gov.sde"):
-
+    def __init__(self, file_path, save_path, sample_matches_file, schema_file_path):
+        self.enviro = "C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/Connection to DEFAULT@uggp.agrc.utah.gov.sde"
+        arcpy.env.workspace = self.enviro
         self.chem_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results"
         self.activities_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Activities"
         self.stations_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Locations"
-
+        self.user = "paulinkenbrandt"
         self.save_folder = save_path
         self.schema_file_path = schema_file_path
         self.sample_matches_file = sample_matches_file
@@ -272,6 +300,19 @@ class ProcessStateLabText(object):
                                   'WRI - Montezuma': 'UWRIM',
                                   'WRI - Tintic Valley': 'UWRIT'}
 
+        self.fieldnames = ['ActivityID', 'ProjectID', 'MonitoringLocationID', 'ActivityStartDate',
+                           'ActivityStartTime', 'notes', 'personnel', 'created_user',
+                           'created_date', 'last_edited_user', 'last_edited_date']
+
+        self.labfields = ['ActivityID', 'MonitoringLocationID',
+                          'ResultAnalyticalMethodContext', 'ResultAnalyticalMethodID',
+                          'ResultSampleFraction', 'resultvalue', 'ResultDetecQuantLimitMeasure',
+                          'ResultDetecQuantLimitUnit', 'ResultUnit', 'AnalysisStartDate',
+                          'ResultDetecQuantLimitType', 'ResultDetectionCondition',
+                          'CharacteristicName', 'MethodSpeciation', 'characteristicgroup',
+                          'ResultValueType', 'ResultStatusID']
+
+
     def run_calcs(self):
         matches_dict = self.get_sample_matches()
         state_lab_chem = self.state_lab_chem
@@ -300,6 +341,7 @@ class ProcessStateLabText(object):
                          'Dilution Factor', 'Batch Number', 'Replicate Number',
                          'Sample Detect Limit', 'Problem Identifier', 'Result Code',
                          'Sample Type', 'Project Comment', 'Sample Comment']
+
         state_lab_chem = state_lab_chem.drop(unneeded_cols, axis=1)
         state_lab_chem['ResultValueType'] = 'Actual'
         state_lab_chem['ResultStatusID'] = 'Final'
@@ -313,12 +355,65 @@ class ProcessStateLabText(object):
         self.save_it(self.save_folder)
         return state_lab_chem
 
+    def append_data(self):
+        state_lab_chem = self.run_calcs()
+        sdeact = table_to_pandas_dataframe(self.activities_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
+        sdechem = table_to_pandas_dataframe(self.chem_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
+
+        state_lab_chem['created_user'] = self.user
+        state_lab_chem['last_edited_user'] = self.user
+        state_lab_chem['created_date'] = pd.datetime.today()
+        state_lab_chem['last_edited_date'] = pd.datetime.today()
+
+        try:
+            df = state_lab_chem[~state_lab_chem['ActivityID'].isin(sdeact['ActivityID'])]
+            fieldnames = ['ActivityID', 'ProjectID', 'MonitoringLocationID', 'ActivityStartDate',
+                          'ActivityStartTime', 'notes', 'personnel', 'created_user', 'created_date', 'last_edited_user',
+                          'last_edited_date']
+
+            for i in range(0, len(df), 500):
+                j = i + 500
+                if j > len(df):
+                    j = len(df)
+                subset = df.iloc[i:j]
+                print("{:} to {:} complete".format(i, j))
+                edit_table(subset, self.activities_table_name, fieldnames=fieldnames, enviro = self.enviro)
+                print('success!')
+        except Exception as err:
+            print(err)
+            print('fail!')
+            pass
+
+        try:
+            df = state_lab_chem[~state_lab_chem['ActivityID'].isin(sdechem['ActivityID'])]
+            fieldnames = ['ActivityID', 'MonitoringLocationID', 'ResultAnalyticalMethodContext', 'ResultAnalyticalMethodID',
+                          'ResultSampleFraction',
+                          'resultvalue', 'ResultDetecQuantLimitMeasure', 'ResultDetecQuantLimitUnit', 'ResultUnit',
+                          'AnalysisStartDate', 'ResultDetecQuantLimitType', 'ResultDetectionCondition',
+                          'CharacteristicName',
+                          'MethodSpeciation', 'characteristicgroup', 'ResultValueType', 'ResultStatusID',
+                          'inwqx', 'created_user', 'last_edited_user', 'created_date', 'last_edited_date']
+
+            for i in range(0, len(df), 500):
+                j = i + 500
+                if j > len(df):
+                    j = len(df)
+                subset = df.iloc[i:j]
+                print("{:} to {:} complete".format(i, j))
+                edit_table(subset, self.chem_table_name, fieldnames = fieldnames, enviro = self.enviro)
+                print('success!')
+        except Exception as err:
+            print(err)
+            print('fail!')
+            pass
+
     def pull_sde_stations(self):
+
         stations = table_to_pandas_dataframe(self.stations_table_name, field_names=['LocationID', 'QWNetworkName'])
         return stations
 
     def get_sample_matches(self):
-        matches = pd.read_excel(self.sample_matches_file, 'UTGS_EDD_20190304')
+        matches = pd.read_csv(self.sample_matches_file)
         matches = matches[['Station ID', 'Sample Number']].drop_duplicates()
         matches['Station ID'] = matches['Station ID'].apply(lambda x: "{:.0f}".format(x), 1)
         matches_dict = matches[['Sample Number', 'Station ID']].set_index(['Sample Number']).to_dict()['Station ID']
@@ -393,3 +488,4 @@ class ProcessStateLabText(object):
 
     def save_it(self, savefolder):
         self.state_lab_chem.to_csv("{:}/state_lab_to_sde_{:%Y%m%d}.csv".format(savefolder, pd.datetime.today()))
+
