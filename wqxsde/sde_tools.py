@@ -12,8 +12,6 @@ class GetPaths():
         self.stations_table = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Locations"
 
 
-
-
 class SDEStationstoWQX(object):
 
     def __init__(self, sde_stat_table, save_dir):
@@ -119,12 +117,12 @@ def edit_table(df, sde_table, fieldnames=None,
                     if k == 0:
                         strvar = "(" + strvar
                     strfill.append(strvar)
-                strfill.append(",{:})".format(objid))
+                strfill.append(" {:})".format(objid))
                 sqlendlist.append(",".join(map(str, strfill)))
 
             sqlend = "{:}".format(",".join(sqlendlist))
             sql = sqlbeg + sqlend
-            print(sql)
+            #print(sql)
             egdb_return = egdb_conn.execute(sql)
 
             # If the update completed successfully, commit the changes.  If not, rollback.
@@ -221,15 +219,194 @@ def get_field_names(table):
     return field_names
 
 
-class ProcessStateLabText(object):
+class ProcessEPASheet(object):
 
-    def __init__(self, file_path, save_path, sample_matches_file, schema_file_path):
+    def __init__(self, file_path, save_path, schema_file_path, user='paulinkenbrandt'):
         self.enviro = "C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/Connection to DEFAULT@uggp.agrc.utah.gov.sde"
         arcpy.env.workspace = self.enviro
         self.chem_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results"
         self.activities_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Activities"
         self.stations_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Locations"
-        self.user = "paulinkenbrandt"
+        self.user = user
+        self.save_folder = save_path
+        self.schema_file_path = schema_file_path
+
+        self.epa_raw_data = pd.read_excel(file_path)
+        self.epa_data = None
+        self.epa_rename = {'Laboratory': 'LaboratoryName',
+                           'LabNumber': 'ActivityID',
+                           'SampleName': 'MonitoringLocationID',
+                           'Method': 'ResultAnalyticalMethodID',
+                           'Analyte': 'CharacteristicName',
+                           'ReportLimit': 'ResultDetecQuantLimitUnit',
+                           'Result': 'resultvalue',
+                           'AnalyteQual': 'ResultQualifier',
+                           'AnalysisClass': 'ResultSampleFraction',
+                           'ReportLimit': 'DetecQuantLimitMeasure',
+                           'Units':'ResultUnit',
+                           }
+
+        self.epa_drop = ['Batch', 'Analysis', 'Analyst', 'CASNumber', 'Elevation', 'LabQual',
+                         'Client', 'ClientMatrix', 'Dilution', 'SpkAmt', 'UpperLimit', 'Recovery',
+                         'Surrogate', 'LowerLimit', 'Latitude', 'Longitude', 'SampleID', 'ProjectNumber',
+                         'Sampled', 'Analyzed', 'PrepMethod', 'Prepped', 'Project']
+
+    def renamepar(self, df):
+
+        x = df['CharacteristicName']
+        pardict = {'Ammonia as N': ['Ammonia', 'as N'], 'Sulfate as SO4': ['Sulfate', 'as SO4'],
+                   'Nitrate as N': ['Nitrate', 'as N'], 'Nitrite as N': ['Nitrite', 'as N'],
+                   'Orthophosphate as P': ['Orthophosphate', 'as P']}
+        if ' as' in x:
+            df['CharacteristicName'] = pardict.get(x)[0]
+            df['MethodSpeciation'] = pardict.get(x)[1]
+        else:
+            df['CharacteristicName'] = df['CharacteristicName']
+            df['MethodSpeciation'] = None
+
+        return df
+
+    def hasless(self, df):
+        if '<' in str(df['resultvalue']):
+            df['resultvalue'] = None
+            df['ResultDetectionCondition'] = 'Below Reporting Limit'
+            df['ResultDetecQuantLimitType'] = 'Lower Reporting Limit'
+        elif '>' in str(df['resultvalue']):
+            df['resultvalue'] = None
+            df['ResultDetectionCondition'] = 'Above Reporting Limit'
+            df['ResultDetecQuantLimitType'] = 'Upper Reporting Limit'
+        elif '[' in str(df['resultvalue']):
+            df['resultvalue'] = pd.to_numeric(df['resultvalue'].split(" ")[0],errors='coerce')
+            df['ResultDetecQuantLimitType'] = None
+            df['ResultDetectionCondition'] = None
+        else:
+            df['resultvalue'] = pd.to_numeric(df['resultvalue'],errors='coerce')
+            df['ResultDetecQuantLimitType'] = None
+            df['ResultDetectionCondition'] = None
+        return df
+
+    def resqual(self, x):
+        if pd.isna(x[1]) and x[0] == 'Below Reporting Limit':
+            return 'BRL'
+        elif pd.notnull(x[1]):
+            return x[1]
+        else:
+            return None
+
+    def filtmeth(self, x):
+        if "EPA" in x:
+            x = x.split(' ')[1]
+        elif '/' in x:
+            x = x.split('/')[0]
+        else:
+            x = x
+        return x
+
+    def save_it(self, savefolder):
+        self.epa_data.to_csv("{:}/epa_sheet_to_sde_{:%Y%m%d%M%H%S}.csv".format(savefolder, pd.datetime.today()))
+
+    def get_group_names(self):
+        char_schema = pd.read_excel(self.schema_file_path, "CHARACTERISTIC")
+        chemgroups = char_schema[['Name', 'Group Name']].set_index(['Name']).to_dict()['Group Name']
+        return chemgroups
+
+    def run_calcs(self):
+        epa_raw_data = self.epa_raw_data
+        epa_raw_data = epa_raw_data.rename(columns=self.epa_rename)
+        epa_raw_data['ResultSampleFraction'] = epa_raw_data['ResultSampleFraction'].apply(
+            lambda x: 'Total' if 'WET' else x, 1)
+        epa_raw_data['personnel'] = None
+        epa_raw_data = epa_raw_data.apply(lambda x: self.hasless(x), 1)
+        epa_raw_data['ResultAnalyticalMethodID'] = epa_raw_data['ResultAnalyticalMethodID'].apply(
+            lambda x: self.filtmeth(x), 1)
+        epa_raw_data['ResultAnalyticalMethodContext'] = 'USEPA'
+        epa_raw_data['ProjectID'] = 'UNGWMN'
+        epa_raw_data['ResultQualifier'] = epa_raw_data[['ResultDetectionCondition',
+                                                        'ResultQualifier']].apply(lambda x: self.resqual(x), 1)
+        epa_raw_data['inwqx'] = 0
+        epa_raw_data['notes'] = None
+        epa_raw_data = epa_raw_data.apply(lambda x: self.renamepar(x), 1)
+        epa_raw_data['resultid'] = epa_raw_data[['ActivityID','CharacteristicName']].apply(lambda x: str(x[0]) + '-' + str(x[1]), 1)
+        epa_raw_data['ActivityStartDate'] = epa_raw_data['Sampled'].apply(lambda x: "{:%Y-%m-%d}".format(x), 1)
+        epa_raw_data['ActivityStartTime'] = epa_raw_data['Sampled'].apply(lambda x: "{:%H:%M}".format(x), 1)
+        epa_raw_data['AnalysisStartDate'] = epa_raw_data['Analyzed'].apply(lambda x: "{:%Y-%m-%d}".format(x), 1)
+        unitdict = {'ug/L': 'ug/l', 'NONE': 'None', 'UMHOS-CM': 'uS/cm', 'mg/L':'mg/l'}
+        epa_raw_data['ResultUnit'] = epa_raw_data['ResultUnit'].apply(lambda x: unitdict.get(x, x), 1)
+        epa_raw_data['ResultDetecQuantLimitUnit'] = epa_raw_data['ResultUnit']
+
+        chemgroups = self.get_group_names()
+        epa_raw_data['characteristicgroup'] = epa_raw_data['CharacteristicName'].apply(lambda x: chemgroups.get(x),1)
+
+        epa_data = epa_raw_data.drop(self.epa_drop, axis=1)
+        self.epa_data = epa_data
+        self.save_it(self.save_folder)
+        return epa_data
+
+    def append_data(self):
+        epa_chem = self.run_calcs()
+        sdeact = table_to_pandas_dataframe(self.activities_table_name,
+                                           field_names=['MonitoringLocationID', 'ActivityID'])
+        sdechem = table_to_pandas_dataframe(self.chem_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
+
+        epa_chem['created_user'] = self.user
+        epa_chem['last_edited_user'] = self.user
+        epa_chem['created_date'] = pd.datetime.today()
+        epa_chem['last_edited_date'] = pd.datetime.today()
+
+        try:
+            df = epa_chem[~epa_chem['ActivityID'].isin(sdeact['ActivityID'])]
+            fieldnames = ['ActivityID', 'ProjectID', 'MonitoringLocationID', 'ActivityStartDate',
+                          'ActivityStartTime', 'notes', 'personnel', 'created_user', 'created_date', 'last_edited_user',
+                          'last_edited_date']
+
+            for i in range(0, len(df), 500):
+                j = i + 500
+                if j > len(df):
+                    j = len(df)
+                subset = df.iloc[i:j]
+                print("{:} to {:} complete".format(i, j))
+                edit_table(subset, self.activities_table_name, fieldnames=fieldnames, enviro=self.enviro)
+                print('success!')
+        except Exception as err:
+            print(err)
+            print('fail!')
+            pass
+
+        try:
+            df = epa_chem[~epa_chem['ActivityID'].isin(sdechem['ActivityID'])]
+            fieldnames = ['ActivityID', 'MonitoringLocationID', 'ResultAnalyticalMethodContext',
+                          'ResultAnalyticalMethodID',
+                          'ResultSampleFraction',
+                          'resultvalue', 'DetecQuantLimitMeasure', 'ResultDetecQuantLimitUnit', 'ResultUnit',
+                          'AnalysisStartDate', 'ResultDetecQuantLimitType', 'ResultDetectionCondition',
+                          'CharacteristicName',
+                          'MethodSpeciation', 'characteristicgroup', 'resultid',
+                          'inwqx', 'created_user', 'last_edited_user', 'created_date', 'last_edited_date']
+
+            for i in range(0, len(df), 500):
+                j = i + 500
+                if j > len(df):
+                    j = len(df)
+                subset = df.iloc[i:j]
+                print("{:} to {:} complete".format(i, j))
+                edit_table(subset, self.chem_table_name, fieldnames=fieldnames, enviro=self.enviro)
+                print('success!')
+        except Exception as err:
+            print(err)
+            print('fail!')
+            pass
+
+
+
+class ProcessStateLabText(object):
+
+    def __init__(self, file_path, save_path, sample_matches_file, schema_file_path, user = 'paulinkenbrandt'):
+        self.enviro = "C:/Users/paulinkenbrandt/AppData/Roaming/Esri/Desktop10.6/ArcCatalog/Connection to DEFAULT@uggp.agrc.utah.gov.sde"
+        arcpy.env.workspace = self.enviro
+        self.chem_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Results"
+        self.activities_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Phy_Chem_Activities"
+        self.stations_table_name = "UGGP.UGGPADMIN.UGS_NGWMN_Monitoring_Locations"
+        self.user = user
         self.save_folder = save_path
         self.schema_file_path = schema_file_path
         self.sample_matches_file = sample_matches_file
@@ -282,7 +459,7 @@ class ProcessStateLabText(object):
                          'Method ID': 'ResultAnalyticalMethodID',
                          'Matrix Description': 'ResultSampleFraction',
                          'Result Value': 'resultvalue',
-                         'Lower Report Limit': 'ResultDetecQuantLimitMeasure',
+                         'Lower Report Limit': 'DetecQuantLimitMeasure',
                          'Method Detect Limit': 'ResultDetecQuantLimitUnit',
                          'Units': 'ResultUnit',
                          'Analysis Date': 'AnalysisStartDate'}
@@ -308,7 +485,7 @@ class ProcessStateLabText(object):
 
         self.labfields = ['ActivityID', 'MonitoringLocationID',
                           'ResultAnalyticalMethodContext', 'ResultAnalyticalMethodID',
-                          'ResultSampleFraction', 'resultvalue', 'ResultDetecQuantLimitMeasure',
+                          'ResultSampleFraction', 'resultvalue', 'DetecQuantLimitMeasure',
                           'ResultDetecQuantLimitUnit', 'ResultUnit', 'AnalysisStartDate',
                           'ResultDetecQuantLimitType', 'ResultDetectionCondition',
                           'CharacteristicName', 'MethodSpeciation', 'characteristicgroup',
@@ -353,6 +530,8 @@ class ProcessStateLabText(object):
         unitdict = {'MG-L': 'mg/l', 'UG-L': 'ug/l', 'NONE': 'None', 'UMHOS-CM': 'uS/cm'}
         state_lab_chem['ResultUnit'] = state_lab_chem['ResultUnit'].apply(lambda x: unitdict.get(x, x), 1)
         state_lab_chem['ResultDetecQuantLimitUnit'] = state_lab_chem['ResultUnit']
+        state_lab_chem['resultid'] = state_lab_chem[['ActivityID', 'CharacteristicName']].apply(lambda x: x[0] + '-' + x[1],
+                                                                                            1)
         self.state_lab_chem = state_lab_chem
         self.save_it(self.save_folder)
         return state_lab_chem
@@ -390,11 +569,11 @@ class ProcessStateLabText(object):
             df = state_lab_chem[~state_lab_chem['ActivityID'].isin(sdechem['ActivityID'])]
             fieldnames = ['ActivityID', 'MonitoringLocationID', 'ResultAnalyticalMethodContext', 'ResultAnalyticalMethodID',
                           'ResultSampleFraction',
-                          'resultvalue', 'ResultDetecQuantLimitMeasure', 'ResultDetecQuantLimitUnit', 'ResultUnit',
+                          'resultvalue', 'DetecQuantLimitMeasure', 'ResultDetecQuantLimitUnit', 'ResultUnit',
                           'AnalysisStartDate', 'ResultDetecQuantLimitType', 'ResultDetectionCondition',
                           'CharacteristicName',
-                          'MethodSpeciation', 'characteristicgroup', 'ResultValueType', 'ResultStatusID',
-                          'inwqx', 'created_user', 'last_edited_user', 'created_date', 'last_edited_date']
+                          'MethodSpeciation', 'characteristicgroup',
+                          'inwqx', 'created_user', 'last_edited_user', 'created_date', 'last_edited_date', 'resultid']
 
             for i in range(0, len(df), 500):
                 j = i + 500
