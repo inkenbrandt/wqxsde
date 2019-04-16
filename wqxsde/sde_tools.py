@@ -100,24 +100,30 @@ def edit_table(df, sde_table, fieldnames=None,
             subset = df[fieldnames]
             rowlist = subset.values.tolist()
             # build the insert sql to append to the table
+            # this creates the first part of the insert statement, listing the fields to insert
             sqlbeg = "INSERT INTO {:}({:},OBJECTID)\nVALUES ".format(sde_table, ",".join(map(str, fieldnames)))
             sqlendlist = []
-
+            # this creates the lists of data to insert
             for j in range(len(rowlist)):
                 objid += 1
                 strfill = []
                 # This loop deals with different data types and NULL values
                 for k in range(len(rowlist[j])):
+                    # if null replace python None with string NULL
                     if pd.isna(rowlist[j][k]):
                         strvar = "NULL"
+                    # if number, no commas in SQL
                     elif isinstance(rowlist[j][k], (int, float)):
                         strvar = "{:}".format(rowlist[j][k])
+                    # if string, add commas around sql text
                     else:
                         strvar = "'{:}'".format(rowlist[j][k])
+                    # put a parenthesis around the beginning of each list
                     if k == 0:
                         strvar = "(" + strvar
                     strfill.append(strvar)
                 strfill.append(" {:})".format(objid))
+                # join all list items into one long string with commas
                 sqlendlist.append(",".join(map(str, strfill)))
 
             sqlend = "{:}".format(",".join(sqlendlist))
@@ -333,7 +339,7 @@ class ProcessEPASheet(object):
         unitdict = {'ug/L': 'ug/l', 'NONE': 'None', 'UMHOS-CM': 'uS/cm', 'mg/L':'mg/l'}
         epa_raw_data['ResultUnit'] = epa_raw_data['ResultUnit'].apply(lambda x: unitdict.get(x, x), 1)
         epa_raw_data['ResultDetecQuantLimitUnit'] = epa_raw_data['ResultUnit']
-
+        epa_raw_data['MonitoringLocationID'] = epa_raw_data['MonitoringLocationID'].apply(lambda x: str(x),1)
         chemgroups = self.get_group_names()
         epa_raw_data['characteristicgroup'] = epa_raw_data['CharacteristicName'].apply(lambda x: chemgroups.get(x),1)
 
@@ -355,6 +361,7 @@ class ProcessEPASheet(object):
 
         try:
             df = epa_chem[~epa_chem['ActivityID'].isin(sdeact['ActivityID'])]
+            df = df.drop_duplicates(subset=['ActivityID'])
             fieldnames = ['ActivityID', 'ProjectID', 'MonitoringLocationID', 'ActivityStartDate',
                           'ActivityStartTime', 'notes', 'personnel', 'created_user', 'created_date', 'last_edited_user',
                           'last_edited_date']
@@ -538,6 +545,7 @@ class ProcessStateLabText(object):
 
     def append_data(self):
         state_lab_chem = self.run_calcs()
+        sdestat = table_to_pandas_dataframe(self.activities_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
         sdeact = table_to_pandas_dataframe(self.activities_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
         sdechem = table_to_pandas_dataframe(self.chem_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
 
