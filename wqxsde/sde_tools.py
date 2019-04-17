@@ -17,6 +17,7 @@ class SDEStationstoWQX(object):
     def __init__(self, sde_stat_table, save_dir):
         self.import_config_link = "https://cdx.epa.gov/WQXWeb/ImportConfigurationDetail.aspx?mode=import&impcfg_uid=6441"
         sde_stat_import = sde_stat_table[sde_stat_table['inwqx'] == 0]
+        sde_stat_import = sde_stat_import[sde_stat_import['Send'] == 1]
         sde_stat_import = sde_stat_import.reset_index()
         sde_stat_import['TribalLandInd'] = 'No'
         sde_stat_import['TribalLandName'] = None
@@ -166,18 +167,20 @@ def compare_sde_wqx(wqx_results_filename, enviro, chem_table_name, table_type='c
             lambda x: "{:}-{:}-{:}".format(str(x[0]), str(x[1]), x[2]), 1)
         sde_chem_table['uniqueid'] = sde_chem_table[['MonitoringLocationID', 'ActivityID', 'CharacteristicName']].apply(
             lambda x: "{:}-{:}-{:}".format(str(x[0]), str(x[1]), x[2]), 1)
-        wqx_chem_table = wqx_chem_table.set_index('uniqueid')
-        sde_chem_table = sde_chem_table.set_index('uniqueid')
+        wqx_chem_table = wqx_chem_table.drop_duplicates(subset='uniqueid')
+        wqx_chem_table = wqx_chem_table.reset_index().set_index('uniqueid')
+        sde_chem_table = sde_chem_table.reset_index().set_index('uniqueid')
+
     else:
-        sde_chem_table = sde_chem_table.set_index('LocationID')
-        wqx_chem_table = wqx_chem_table.set_index('Monitoring Location ID')
+        sde_chem_table = sde_chem_table.reset_index().set_index('LocationID')
+        wqx_chem_table = wqx_chem_table.reset_index().set_index('Monitoring Location ID')
 
     objtable = []
 
     for ind in sde_chem_table.index:
         if ind in wqx_chem_table.index:
             objtable.append(sde_chem_table.loc[ind, 'OBJECTID'])
-    loc_dict = {}  # empty dictionary
+
     # iterate input table
     with arcpy.da.UpdateCursor(chem_table_name, ['OID@', 'inwqx']) as tcurs:
         for row in tcurs:
@@ -221,7 +224,7 @@ def get_field_names(table):
     field_names = []
     for field in read_descr.fields:
         field_names.append(field.name)
-    field_names.remove('OBJECTID')
+    #field_names.remove('OBJECTID')
     return field_names
 
 
@@ -545,7 +548,6 @@ class ProcessStateLabText(object):
 
     def append_data(self):
         state_lab_chem = self.run_calcs()
-        sdestat = table_to_pandas_dataframe(self.activities_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
         sdeact = table_to_pandas_dataframe(self.activities_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
         sdechem = table_to_pandas_dataframe(self.chem_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
 
