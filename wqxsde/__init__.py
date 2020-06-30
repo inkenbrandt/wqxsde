@@ -2,7 +2,12 @@
 from __future__ import absolute_import, division, print_function, unicode_literals
 import os
 
-from .sde_tools import *
+#import sde_tools
+#import wqpget
+import wqxsde
+from wqxsde.sde_tools import *
+from wqxsde.wqpget import *
+
 
 __version__ = '0.0.1'
 __author__ = 'Paul Inkenbrandt'
