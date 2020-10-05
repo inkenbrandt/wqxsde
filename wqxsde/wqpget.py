@@ -10,6 +10,9 @@ from datetime import datetime
 import numpy as np
 import requests
 
+
+
+
 class WQP(object):
     """Downloads Water Quality Data from thw Water Quality Portal based on parameters entered
     :param values: query parameter designating location to select site; this is the Argument for the REST parameter in

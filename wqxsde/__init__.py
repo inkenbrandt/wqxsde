@@ -7,6 +7,8 @@ import os
 import wqxsde
 from wqxsde.sde_tools import *
 from wqxsde.wqpget import *
+from wqxsde.piper import *
+from wqxsde.map_file_gui import *
 
 
 __version__ = '0.0.1'

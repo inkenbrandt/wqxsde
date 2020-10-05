@@ -4,16 +4,18 @@ import requests
 import datetime
 from sqlalchemy import create_engine
 
+
 class SDEconnect(object):
     def __init__(self):
         self.engine = None
         self.user = None
-        self.passoword = None
+        self.password = None
 
         self.tabnames = {'Result': "ugs_ngwmn_monitoring_phy_chem_results",
                          'Activity': "ugs_ngwmn_monitoring_phy_chem_activities",
                          'Station': "ugs_ngwmn_monitoring_locations"}
         self.ugs_tabs = {}
+        self.ugs_to_upload = {}
         self.fieldnames = {}
         self.fieldnames['Result'] = ['activityid', 'monitoringlocationid', 'resultanalyticalmethodcontext',
                                      'resultanalyticalmethodid',
@@ -35,8 +37,22 @@ class SDEconnect(object):
                                       'welltype', 'welldepth', 'welldepthmeasureunit', 'aquifername']
 
         self.fieldnames['Activity'] = ['activityid', 'projectid', 'monitoringlocationid', 'activitystartdate',
-                      'activitystarttime', 'notes', 'personnel', 'created_user', 'created_date', 'last_edited_user',
-                      'last_edited_date']
+                                       'activitystarttime', 'notes', 'personnel', 'created_user', 'created_date',
+                                       'last_edited_user',
+                                       'last_edited_date']
+
+        self.fieldnames['Result-Activity'] = ['activityid', 'activitymedia', 'activitystartdate', 'activitystarttime',
+                                              'activitytimezone', 'activitytype', 'analysisstartdate',
+                                              'characteristicname', 'laboratoryname', 'methodspeciation',
+                                              'monitoringlocationid',
+                                              'projectid',
+                                              'resultanalyticalmethodcontext', 'resultanalyticalmethodid',
+                                              'resultdetectioncondition',
+                                              'detecquantlimitmeasure', 'resultdetecquantlimittype',
+                                              'resultdetecquantlimitunit', 'resultsamplefraction', 'resultstatusid',
+                                              'resultunit', 'resultvaluetype', 'sampcollectionequip',
+                                              'sampcollectmethod'
+                                              ]
 
     def start_engine(self, user, password, host='nrwugspgressp', port='5432', db='ugsgwp'):
         self.user = user
@@ -56,6 +72,52 @@ class SDEconnect(object):
         except:
             print("Please use .start_engine() to enter credentials")
 
+    def get_result_activity_sde(self):
+        sql = """SELECT
+                ugs_ngwmn_monitoring_phy_chem_results.objectid,
+                ugs_ngwmn_monitoring_phy_chem_results.monitoringlocationid,
+                ugs_ngwmn_monitoring_phy_chem_results.activityid,
+                ugs_ngwmn_monitoring_phy_chem_activities.activitystartdate,
+                ugs_ngwmn_monitoring_phy_chem_activities.activitystarttime,
+                ugs_ngwmn_monitoring_phy_chem_results.characteristicgroup,
+                ugs_ngwmn_monitoring_phy_chem_results.characteristicname,
+                ugs_ngwmn_monitoring_phy_chem_results.resultvalue,
+                ugs_ngwmn_monitoring_phy_chem_results.resultunit,
+                ugs_ngwmn_monitoring_phy_chem_results.resultqualifier,
+                ugs_ngwmn_monitoring_phy_chem_results.detecquantlimitmeasure,
+                ugs_ngwmn_monitoring_phy_chem_results.resultdetecquantlimitunit,
+                ugs_ngwmn_monitoring_phy_chem_results.resultdetecquantlimittype,
+                ugs_ngwmn_monitoring_phy_chem_results.resultanalyticalmethodid,
+                ugs_ngwmn_monitoring_phy_chem_results.resultanalyticalmethodcontext,
+                ugs_ngwmn_monitoring_phy_chem_results.resultsamplefraction,
+                ugs_ngwmn_monitoring_phy_chem_results.methodspeciation,
+                ugs_ngwmn_monitoring_phy_chem_results.resultdetectioncondition,
+                ugs_ngwmn_monitoring_phy_chem_results.laboratoryname,
+                ugs_ngwmn_monitoring_phy_chem_results.analysisstartdate,
+                ugs_ngwmn_monitoring_phy_chem_results.inwqx,
+                ugs_ngwmn_monitoring_phy_chem_results.created_user,
+                ugs_ngwmn_monitoring_phy_chem_results.created_date,
+                ugs_ngwmn_monitoring_phy_chem_results.last_edited_user,
+                ugs_ngwmn_monitoring_phy_chem_results.last_edited_date,
+                ugs_ngwmn_monitoring_phy_chem_results.resultid,
+                ugs_ngwmn_monitoring_phy_chem_activities.projectid,
+                ugs_ngwmn_monitoring_phy_chem_activities.personnel 
+            FROM
+                ugs_ngwmn_monitoring_phy_chem_results
+            LEFT JOIN ugs_ngwmn_monitoring_phy_chem_activities 
+            ON ugs_ngwmn_monitoring_phy_chem_results.activityid = ugs_ngwmn_monitoring_phy_chem_activities.activityid;"""
+        df = pd.read_sql(sql, self.engine, parse_dates={'activitystartdate': '%Y-%m-%D'})
+
+        df['activitymedia'] = 'Water'
+        df['activitytimezone'] = 'MDT'
+        df['sampcollectionequip'] = 'Water Bottle'
+        df['sampcollectmethod'] = 'GRAB'
+        df['resultvaluetype'] = 'Actual'
+        df['resultstatusid'] = 'Final'
+        df['activitytype'] = df['activityid'].apply(lambda x: 'Field Msr/Obs' if '-FM' in x else 'Sample-Routine', 1)
+
+        self.ugs_tabs['Result-Activity'] = df
+
     def get_group_names(self):
         # "https://cdxnodengn.epa.gov/cdx-srs-rest/"
         char_domains = "http://www.epa.gov/storet/download/DW_domainvalues.xls"
@@ -67,11 +129,18 @@ class SDEconnect(object):
 
 
 class SDEtoWQX(SDEconnect):
-    def __init__(self, savedir):
+    def __init__(self, user, password, savedir):
+        """
+        Class to convert UGS Database data into EPA WQX format for upload;  This class uses UGS config 6441.
+        :param savedir: location to save output files
+        """
         # self.enviro = conn_file
-        SDEconnect.__init__()
+        SDEconnect.__init__(self)
         self.savedir = savedir
-        self.import_config_link = "https://cdx.epa.gov/WQXWeb/ImportConfigurationDetail.aspx?mode=import&impcfg_uid=6441"
+        self.config_links = {}
+        self.import_config_url = "https://cdx.epa.gov/WQXWeb/ImportConfigurationDetail.aspx?mode=import&impcfg_uid={:}"
+        self.config_links['Station'] = self.import_config_url.format(6441)
+        self.config_links['Result'] = self.import_config_url.format(5926)
         self.rename = {}
         self.rename['Station'] = {'MonitoringLocationIdentifier': 'locationid',
                                   'MonitoringLocationName': 'locationname',
@@ -112,9 +181,15 @@ class SDEtoWQX(SDEconnect):
 
         self.wqp_tabs = {}
         self.ugs_to_upload = {}
+
+        self.start_engine(user, password)
         self.get_sde_tables()
+        self.get_result_activity_sde()
         self.get_wqp_tables()
+        self.compare_sde_wqx()
         self.prep_station_sde()
+        #self.prep_result_sde()
+        self.prep_result_activity_sde()
 
     def get_wqp_tables(self, **kwargs):
         """
@@ -132,20 +207,33 @@ class SDEtoWQX(SDEconnect):
             response_ob = requests.get(base_url, params=kwargs)
             self.wqp_tabs[res] = pd.read_csv(response_ob.url).dropna(how='all', axis=1).rename(columns=self.rename[res])
 
+
     def compare_sde_wqx(self):
         """
         compares unique rows in ugs SDE tables to those in EPA WQX
         """
+        self.wqp_tabs['Result']['activityid'] = self.wqp_tabs['Result']['activityid'].apply(lambda x: x.replace('UTAHGS-',''))
 
-        for tab in [self.wqp_tabs['Result'], self.ugs_tabs['Result']]:
+        for tab in [self.wqp_tabs['Result'], self.ugs_tabs['Result'], self.ugs_tabs['Result-Activity']]:
             tab['uniqueid'] = tab[['monitoringlocationid', 'activityid', 'characteristicname']].apply(
                 lambda x: "{:}-{:}-{:}".format(str(x[0]), str(x[1]), x[2]), 1)
             tab = tab.drop_duplicates(subset='uniqueid')
 
-        for key, value in {'Result': 'uniqueid', 'Station': 'locationid', 'Activity': 'activityid'}.items():
+        self.wqp_tabs['Result-Activity'] = self.wqp_tabs['Result']
+
+        for key, value in {'Result': 'uniqueid', 'Station': 'locationid', 'Activity': 'activityid',
+                           'Result-Activity': 'uniqueid'}.items():
             self.ugs_tabs[key]['inwqx'] = self.ugs_tabs[key][value].apply(
                 lambda x: 1 if x in self.wqp_tabs[key].index else 0, 1)
             self.ugs_to_upload[key] = self.ugs_tabs[key][self.ugs_tabs[key]['inwqx'] == 0]
+
+    def prep_result_sde(self):
+        self.ugs_to_upload['Result']['resultstatusid'] = 'Final'
+        self.ugs_to_upload['Result']['resultvaluetype'] = 'Actual'
+        self.ugs_to_upload['Result'] = self.ugs_to_upload['Result'][self.fieldnames['Result-Activity']]
+
+    def prep_result_activity_sde(self):
+        self.ugs_to_upload['Result-Activity'] = self.ugs_to_upload['Result-Activity'][self.fieldnames['Result-Activity']]
 
     def prep_station_sde(self):
         """
@@ -153,18 +241,20 @@ class SDEtoWQX(SDEconnect):
         :param sde_stat_table:
         :param save_dir:
         """
-        self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'][self.ugs_to_upload['Station']['Send'] == 1]
+        self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'][self.ugs_to_upload['Station']['send'] == 1]
         self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'].reset_index()
         self.ugs_to_upload['Station']['triballandind'] = 'No'
         self.ugs_to_upload['Station']['triballandname'] = None
         self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'].apply(lambda x: self.get_context(x), 1)
-        self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'][self.get_stat_col_order()]
+        self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'][self.fieldnames['Station']]
         self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'][
             self.ugs_to_upload['Station']['locationtype'] != 'Atmosphere']
-        self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'].sort_values("LocationID")
+        self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'].sort_values("locationid")
 
     def save_file(self):
-        self.sde_stat_import.to_csv(self.save_dir + "/stations_{:%Y%m%d}.csv".format(pd.datetime.today()), index=False)
+        for tab in self.tabnames.keys():
+            self.ugs_to_upload[tab].to_csv(f"{self.savedir}/sde_to_wqx_{tab}_{datetime.datetime.today():%Y%m%d}.csv",
+                                           index=False)
 
     def get_context(self, df):
         if pd.isnull(df['usgs_id']):
@@ -303,7 +393,8 @@ class EPAtoSDE(SDEconnect):
         epa_raw_data['resultunit'] = epa_raw_data['resultunit'].apply(lambda x: unitdict.get(x, x), 1)
         epa_raw_data['resultdetecquantlimitunit'] = epa_raw_data['resultunit']
         epa_raw_data['monitoringlocationid'] = epa_raw_data['monitoringlocationid'].apply(lambda x: str(x), 1)
-        epa_raw_data['characteristicgroup'] = epa_raw_data['characteristicname'].apply(lambda x: self.chemgroups.get(x),1)
+        epa_raw_data['characteristicgroup'] = epa_raw_data['characteristicname'].apply(lambda x: self.chemgroups.get(x),
+                                                                                       1)
         epa_data = epa_raw_data.drop(self.epa_drop, axis=1)
         self.epa_data = epa_data
 
@@ -321,17 +412,26 @@ class EPAtoSDE(SDEconnect):
         sdeact = self.ugs_tabs['Activities'][[['MonitoringLocationID', 'ActivityID']]]
         sdechem = self.ugs_tabs['Results'][[['MonitoringLocationID', 'ActivityID']]]
 
-        epa_acts = self.epa_data[~self.epa_data['ActivityID'].isin(sdeact['ActivityID'])].drop_duplicates(subset=['ActivityID'])
-        epa_acts[self.fieldnames['Activity']].to_csv(f"{self.save_folder:}/epa_sheet_to_sde_activity_{datetime.datetime.today():%Y%m%d%M%H%S}.csv")
+        epa_acts = self.epa_data[~self.epa_data['ActivityID'].isin(sdeact['ActivityID'])].drop_duplicates(
+            subset=['ActivityID'])
+        epa_acts[self.fieldnames['Activity']].to_csv(
+            f"{self.save_folder:}/epa_sheet_to_sde_activity_{datetime.datetime.today():%Y%m%d%M%H%S}.csv")
 
         epa_results = self.epa_data[~self.epa_data['ActivityID'].isin(sdechem['ActivityID'])]
-        epa_results[self.fieldnames['Result']].to_csv(f"{self.save_folder:}/epa_sheet_to_sde_result_{datetime.datetime.today():%Y%m%d%M%H%S}.csv")
+        epa_results[self.fieldnames['Result']].to_csv(
+            f"{self.save_folder:}/epa_sheet_to_sde_result_{datetime.datetime.today():%Y%m%d%M%H%S}.csv")
         print('success!')
 
 
 class StateLabtoSDE(SDEconnect):
 
     def __init__(self, file_path, save_path, sample_matches_file):
+        """
+
+        :param file_path: path to raw state lab data
+        :param save_path: path of where to save output file
+        :param sample_matches_file: file that contains information for matching records; should contain Sample Number,Station ID
+        """
         SDEconnect.__init__()
 
         self.save_folder = save_path
@@ -403,8 +503,115 @@ class StateLabtoSDE(SDEconnect):
                                   'WRI - Grouse Creek': 'UWRIG',
                                   'WRI - Montezuma': 'UWRIM',
                                   'WRI - Tintic Valley': 'UWRIT'}
+
+
+        self.matches = {'SPRINGVILLE': '401043111361801',
+                   '(C-19-.*?4)31ada-.*?1': '390714112200401',
+                   'AM.*?FK|FORK.*?WELL|wl': '402105111472601',
+                   'Cedar.*?V.*?Fur': '401656112020301',
+                   'FAIRFIELD': '401539112045501',
+                   'clover.*?sp': '402050112330201',
+                   'Pecan': '370858113220301',
+                   'delle.*?sp': '403328112442201',
+                   'sp.*?timpie|timpie.*?sp': '404425112384801',
+                   'sp.*?simpson|simpson.*?sp': '400204112465801',
+                   'sp.*?antelope|antelope.*?sp': '382238113205301',
+                   'sp.*?willow.*?!piez|willow.*?sp.*?!piez|404975112573501': '404975112573501',
+                   'PLACER|OPEN.*?LAND': '383709109230701',
+                   'BAILEY|KEELER': '383832109243901',
+                   'STUCKI': '383922109253801',
+                   'Jenks|ADELE|CREEKSIDE': '383854109242901',
+                   'PORCUPINE': '383453109200601',
+                   'LOOP.*?ROAD': '383746109214001',
+                   'GOLF.*?MOAB|MOAB.*?GOLF|383210109285801': '383210109285801',
+                   'COURTHOUSE.*?WASH': '384113109391001',
+                   'PRICE.*?GOLF': '393841110514801',
+                   'NEPHI.*?WELL': '394313111504701',
+                   'WL.*?FLOWING|FLOWING.*?WL|FLOWING.*?WELL': '3959531115425101',
+                   'SP.*?GOSHEN.*?WARM|GOSHEN.*?WARM.*?SP|395717111512301': '395717111512301',
+                   'WL.*?ELEMEN|ELEMEN.*?WL|ELEMEN.*?WELL': '404724111562501',
+                   'GRATEFUL': '404508112522401',
+                   'RHONDA|EASY.*?ST': '383040109281201',
+                   'LRP1A|LOWER.*?R.*?CKY.*?PASS.*?PIEZ': '413308113492701',
+                   'WLP1C|WILLOW.*?SP.*?PIEZOMETER.*?1C': '413435113475901',
+                   'WLP1B|WILLOW.*?SP.*?PIEZOMETER.*?1B': '413435113475801',
+                   'BRYCE|BC26W.*?RICH': '374159112121001',
+                   'BRYCE.*?BC13W.*?POE': '374124112135501',
+                   'BRYCE.*?BC22W.*?RUBY.*?3': '374138112103102',
+                   'BRYCE.*?BC21W.*?RUBY.*?2': '374138112103101',
+                   'BRYCE.*?BC15S.*?LOWER.*?BERRY': '374410112133001',
+                   'BRYCE.*?BC27W.*?AIRPORT': '374236112092501',
+                   'BRYCE.*?BC40W.*?ELK': '374232112100501',
+                   'BRYCE.*?BC44W.*?NPS.*?1': '373755112124301',
+                   'BRYCE.*?BC17S.*?UPPER.*?BERRY': '374548112142201',
+                   'BRYCE.*?BC25W.*?UDOT': '374156112112401',
+                   'BRYCE.*?BC51W.*?BRISTLE.*?CONE': '374646112063201',
+                   'BRYCE.*?BC11S.*?NPS.*?4': '373801112124701',
+                   'BRYCE.*?BC2S.*?TROPIC.*?1': '373639112152101',
+                   'BRYCE.*?BC4S.*?TROPIC.*?2': '373629112151801',
+                   'BRYCE.*?BC12W USFS': '374017112130801',
+                   'BRYCE.*?BC53S.*?WATER': '373534112151101',
+                   'BRYCE.*?BC6S.*?DRIPPING.*?VAT': '374500112023001',
+                   'BRYCE.*?BC48W.*?SITLA': '374438112080601',
+                   'HAMMOND': '391159111543401',
+                   'NINE.*?MILE': '391020111421301',
+                   'OLSEN': '392335111354601',
+                   'WL.*?T34.*?190605': '394809112161101',
+                   'SP.*?MUD2.*?190605': '394800112160201',
+                   'WL.*?T2.*?190605': '395215112140501',
+                   'SP.*?MUD1.*?190605': '395214112140301',
+                   'WL.*?T53.*?190605': '395059112120501',
+                   'ST.*?T15.*?190605': '395051112120101',
+                   'ST.*?T8.*?190605': '395126112124501',
+                   'BC35S.*?BRYCE|MOSSY.*?CAVE': '373949112065401',
+                   'BC28W.*?BRYCE.*?1': '374750112043401',
+                   'BC30W.*?BRYCE.*?LANDFILL.*?3': '374759112040101',
+                   'BC29W.*?BRYCE.*?LANDFILL.*?2': '374801112042101',
+                   'BC31S.*?BRYCE.*?TOM.*?BEST': '374855112054701',
+                   'BC19W.*?BRYCE.*?KINGS.*?CG': '373647112154301',
+                   'TRI.*?R.*?NCH': '395718112234301',
+                   'SP.*?HUNGTINGTON|HUNTING.*?': '392025110565901',
+                   'IRR.*?WELL.*?GROUSE|GROUSE.*?IRR.*?WELL': '413332113545101',
+                   'IRR.*?WELL.*?13': '415657112514101',
+                   'IRR.*?WELL.*?5': '415906112485001',
+                   '67.*?3499|': '390714112200401',
+                   'FLOWELL.*?WELL|WL.*?FLOWELL': '385822112265201',
+                   'BLACK.*?SPRING': '384610112495201',
+                   'ASHELY.*?GORGE': '403429109370601',
+                   'WHITEROCKS.*?SP|SP.*?WHITEROCKS': '402906109572401',
+                   'SG21C': '395312113244803',
+                   'MUD.*?1': '395214112140301',
+                   'MUD.*?2': '395214112140301',
+                   'T8': '395132112124901',
+                   'T15': '395051112120101',
+                   'T53': '395059112120501',
+                   'T34': '394809112161101',
+                   'T2': '395215112140501',
+                   'KGSP.*?!PIEZ|KEG.*?SPR.*?!PIEZ': '413507113472401',
+                   'NORTH.*?BEDKE.*?SPR': '413810113493901',
+                   'BC7W.*?RUBY.*?4': '374116112083901',
+                   'BC51W.*?BRYCE|BRISTLE.*?CONE': '374646112063201',
+                   'AGI3C': '385630114020202',
+                   'PORCUPINE': '383453109200601'
+                   }
+
         self.get_group_names()
         self.state_lab_chem = self.run_calcs()
+
+    def matchids(self):
+        for key, value in self.matches.items():
+            fd = key + f"|{value}"
+            self.state_lab_chem.loc[self.state_lab_chem['Sample Description'].str.contains(f'(?i){fd}'),
+                                    'Station ID'] = value
+
+    def chem_lookup(chem):
+        url = f'https://cdxnodengn.epa.gov/cdx-srs-rest/substance/name/{chem}?qualifier=exact'
+        rqob = requests.get(url).json()
+        moleweight = float(rqob[0]['molecularWeight'])
+        moleformula = rqob[0]['molecularFormula']
+        casnumber = rqob[0]['currentCasNumber']
+        epaname = rqob[0]['epaName']
+        return [epaname, moleweight, moleformula, casnumber]
 
     def run_calcs(self):
         matches_dict = self.get_sample_matches()
@@ -448,24 +655,30 @@ class StateLabtoSDE(SDEconnect):
             lambda x: x[0] + '-' + x[1],
             1)
         self.state_lab_chem = state_lab_chem
-        #self.save_it(self.save_folder)
+        # self.save_it(self.save_folder)
         return state_lab_chem
 
-    def append_data(self):
-        self.state_lab_chem = self.run_calcs()
-        sdeact = table_to_pandas_dataframe(self.activities_table_name,
-                                           field_names=['MonitoringLocationID', 'ActivityID'])
-        sdechem = table_to_pandas_dataframe(self.chem_table_name, field_names=['MonitoringLocationID', 'ActivityID'])
+    def save_data(self, user, password):
 
-        state_lab_chem['created_user'] = self.user
-        state_lab_chem['last_edited_user'] = self.user
-        state_lab_chem['created_date'] = pd.datetime.today()
-        state_lab_chem['last_edited_date'] = pd.datetime.today()
+        self.start_engine(user, password)
+        self.get_sde_tables()
+        self.state_lab_chem['created_user'] = self.user
+        self.state_lab_chem['last_edited_user'] = self.user
+        self.state_lab_chem['created_date'] = datetime.datetime.today()
+        self.state_lab_chem['last_edited_date'] = datetime.datetime.today()
 
-        df = state_lab_chem[~state_lab_chem['ActivityID'].isin(sdeact['ActivityID'])]
-        edit_table(subset, self.activities_table_name, fieldnames=fieldnames, enviro=self.enviro)
-        df = state_lab_chem[~state_lab_chem['ActivityID'].isin(sdechem['ActivityID'])]
-        self.edit_table(subset, self.chem_table_name, fieldnames=fieldnames, enviro=self.enviro)
+        sdeact = self.ugs_tabs['Activities'][[['MonitoringLocationID', 'ActivityID']]]
+        sdechem = self.ugs_tabs['Results'][[['MonitoringLocationID', 'ActivityID']]]
+
+        state_lab_acts = self.state_lab_chem[
+            ~self.state_lab_chem['ActivityID'].isin(sdeact['ActivityID'])].drop_duplicates(subset=['ActivityID'])
+        state_lab_acts[self.fieldnames['Activity']].to_csv(
+            f"{self.save_folder:}/statelab_sheet_to_sde_activity_{datetime.datetime.today():%Y%m%d%M%H%S}.csv")
+
+        state_lab_chem = self.state_lab_chem[~self.state_lab_chem['ActivityID'].isin(sdechem['ActivityID'])]
+        state_lab_chem[self.fieldnames['Result']].to_csv(
+            f"{self.save_folder:}/statelab_sheet_to_sde_result_{datetime.datetime.today():%Y%m%d%M%H%S}.csv")
+        print('success!')
 
     def get_sample_matches(self):
         matches = pd.read_csv(self.sample_matches_file)
@@ -548,4 +761,5 @@ class StateLabtoSDE(SDEconnect):
 if __name__ == "__main__":
     import sys
 
-    GetPaths(int(sys.argv[1]))
+    sde = SDEconnect()
+    sde.start_engine(sys.argv[0], sys.argv[1])
