@@ -75,7 +75,7 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
-          <widget class="QWebEngineView" name="stationmap">
+          <widget class="QWebEngineView" name="stationmap" native="true">
            <property name="minimumSize">
             <size>
              <width>250</width>
@@ -88,7 +88,7 @@
              <height>800</height>
             </size>
            </property>
-           <property name="url">
+           <property name="url" stdset="0">
             <url>
              <string>about:blank</string>
             </url>
@@ -119,9 +119,9 @@
            <property name="frameShadow">
             <enum>QFrame::Raised</enum>
            </property>
-           <layout class="QVBoxLayout" name="verticalLayout_3">
+           <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
-             <widget class="QTabWidget" name="GraphTabs_2">
+             <widget class="QTabWidget" name="GraphTabs">
               <property name="maximumSize">
                <size>
                 <width>6000</width>
@@ -131,7 +131,16 @@
               <property name="currentIndex">
                <number>0</number>
               </property>
-              <widget class="QWidget" name="pipertab_2">
+              <property name="tabsClosable">
+               <bool>false</bool>
+              </property>
+              <property name="movable">
+               <bool>true</bool>
+              </property>
+              <property name="tabBarAutoHide">
+               <bool>true</bool>
+              </property>
+              <widget class="QWidget" name="pipertab">
                <attribute name="title">
                 <string>Piper Plot</string>
                </attribute>
@@ -146,66 +155,78 @@
                   </property>
                  </widget>
                 </item>
-                <item>
-                 <widget class="QFrame" name="frame_2">
-                  <property name="maximumSize">
-                   <size>
-                    <width>110</width>
-                    <height>16777215</height>
-                   </size>
-                  </property>
-                  <property name="frameShape">
-                   <enum>QFrame::StyledPanel</enum>
-                  </property>
-                  <property name="frameShadow">
-                   <enum>QFrame::Raised</enum>
-                  </property>
-                  <layout class="QVBoxLayout" name="verticalLayout_9">
-                   <item>
-                    <widget class="QPushButton" name="graphresultsbutt">
-                     <property name="text">
-                      <string>Add Selected</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QPushButton" name="addallpipbutt">
-                     <property name="text">
-                      <string>Add All</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QPushButton" name="clearpipbutt">
-                     <property name="text">
-                      <string>Clear</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QRadioButton" name="radioButton">
-                     <property name="text">
-                      <string>Rect.</string>
-                     </property>
-                    </widget>
-                   </item>
-                   <item>
-                    <widget class="QRadioButton" name="radioButton_2">
-                     <property name="text">
-                      <string>Trad.</string>
-                     </property>
-                    </widget>
-                   </item>
-                  </layout>
-                 </widget>
-                </item>
                </layout>
               </widget>
-              <widget class="QWidget" name="timeSeriesTab_2">
+              <widget class="QWidget" name="timeseriestab">
                <attribute name="title">
                 <string>Time Series</string>
                </attribute>
               </widget>
+              <widget class="QWidget" name="stifftab">
+               <attribute name="title">
+                <string>Stiff</string>
+               </attribute>
+              </widget>
+              <widget class="QWidget" name="boxwhiskertab">
+               <attribute name="title">
+                <string>Box-Whisker</string>
+               </attribute>
+              </widget>
+             </widget>
+            </item>
+            <item>
+             <widget class="QFrame" name="frame_2">
+              <property name="maximumSize">
+               <size>
+                <width>110</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="frameShape">
+               <enum>QFrame::StyledPanel</enum>
+              </property>
+              <property name="frameShadow">
+               <enum>QFrame::Raised</enum>
+              </property>
+              <layout class="QVBoxLayout" name="verticalLayout_9">
+               <item>
+                <widget class="QPushButton" name="graphresultsbutt">
+                 <property name="text">
+                  <string>Add Selected</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="addallpipbutt">
+                 <property name="text">
+                  <string>Add All</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="clearpipbutt">
+                 <property name="text">
+                  <string>Clear</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="label">
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Group By:</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="grpbycombo"/>
+               </item>
+              </layout>
              </widget>
             </item>
            </layout>
@@ -232,9 +253,9 @@
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_4">
         <item>
-         <widget class="QTabWidget" name="tabletabs_2">
+         <widget class="QTabWidget" name="tabletabs">
           <property name="currentIndex">
-           <number>0</number>
+           <number>1</number>
           </property>
           <widget class="QWidget" name="StationTab_2">
            <attribute name="title">
@@ -432,15 +453,41 @@
      <x>0</x>
      <y>0</y>
      <width>1041</width>
-     <height>26</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
     <property name="title">
      <string>File</string>
     </property>
+    <widget class="QMenu" name="menuExport_Data">
+     <property name="title">
+      <string>Export Data...</string>
+     </property>
+     <widget class="QMenu" name="menuExport_Station_Data">
+      <property name="title">
+       <string>Export Stations...</string>
+      </property>
+      <addaction name="actionExport_Shapefile"/>
+      <addaction name="actionExport_table"/>
+     </widget>
+     <addaction name="actionExport_All"/>
+     <addaction name="separator"/>
+     <addaction name="actionExport_for_EPA_Upload"/>
+     <addaction name="separator"/>
+     <addaction name="menuExport_Station_Data"/>
+     <addaction name="actionExport_Result_Data"/>
+     <addaction name="actionExport_Activity_Data"/>
+     <addaction name="separator"/>
+     <addaction name="actionExport_Plots"/>
+    </widget>
+    <addaction name="actionNew"/>
     <addaction name="actionSave"/>
     <addaction name="actionOpen"/>
+    <addaction name="separator"/>
+    <addaction name="menuExport_Data"/>
+    <addaction name="separator"/>
+    <addaction name="actionClose"/>
    </widget>
    <widget class="QMenu" name="menuSelect">
     <property name="title">
@@ -456,8 +503,43 @@
     </property>
     <addaction name="actionLink_to_Help_Page"/>
    </widget>
+   <widget class="QMenu" name="menuImport_Data">
+    <property name="title">
+     <string>Import Data</string>
+    </property>
+    <widget class="QMenu" name="menuExisting_UGS_Data">
+     <property name="title">
+      <string>Existing UGS Data...</string>
+     </property>
+     <addaction name="actionFrom_State_Lab_Sheet"/>
+     <addaction name="actionFrom_Water_Quality_Portal"/>
+     <addaction name="actionFrom_a_custom_sheet"/>
+     <addaction name="separator"/>
+     <addaction name="actionFrom_SDE_requires_login"/>
+    </widget>
+    <widget class="QMenu" name="menuWater_Quality_Portal">
+     <property name="title">
+      <string>Water Quality Portal</string>
+     </property>
+     <addaction name="actionDownloaded_CSV"/>
+     <addaction name="actionDownload_Here"/>
+     <addaction name="actionUGS_Data_in_the_WQP"/>
+    </widget>
+    <addaction name="menuExisting_UGS_Data"/>
+    <addaction name="separator"/>
+    <addaction name="menuWater_Quality_Portal"/>
+   </widget>
+   <widget class="QMenu" name="menuAnalysis">
+    <property name="title">
+     <string>Analysis</string>
+    </property>
+    <addaction name="actionPivot_Results"/>
+    <addaction name="actionCharge_Balance"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSelect"/>
+   <addaction name="menuImport_Data"/>
+   <addaction name="menuAnalysis"/>
    <addaction name="menuHelp"/>
   </widget>
   <widget class="QStatusBar" name="statusbar"/>
@@ -489,6 +571,101 @@
   <action name="actionLink_to_Help_Page">
    <property name="text">
     <string>Link to Help Page</string>
+   </property>
+  </action>
+  <action name="actionFrom_State_Lab_Sheet">
+   <property name="text">
+    <string>From State Lab Sheet</string>
+   </property>
+  </action>
+  <action name="actionFrom_Water_Quality_Portal">
+   <property name="text">
+    <string>From Water Quality Portal</string>
+   </property>
+  </action>
+  <action name="actionFrom_a_custom_sheet">
+   <property name="text">
+    <string>From a custom sheet</string>
+   </property>
+  </action>
+  <action name="actionDownloaded_CSV">
+   <property name="text">
+    <string>Downloaded CSV</string>
+   </property>
+  </action>
+  <action name="actionDownload_Here">
+   <property name="text">
+    <string>Download Here</string>
+   </property>
+  </action>
+  <action name="actionNWIS_Data">
+   <property name="text">
+    <string>NWIS Data</string>
+   </property>
+  </action>
+  <action name="actionExport_All">
+   <property name="text">
+    <string>Export All Tables...</string>
+   </property>
+  </action>
+  <action name="actionExport_Result_Data">
+   <property name="text">
+    <string>Export Result Data</string>
+   </property>
+  </action>
+  <action name="actionExport_Activity_Data">
+   <property name="text">
+    <string>Export Activity Data</string>
+   </property>
+  </action>
+  <action name="actionExport_for_EPA_Upload">
+   <property name="text">
+    <string>Export for EPA Upload</string>
+   </property>
+  </action>
+  <action name="actionPivot_Results">
+   <property name="text">
+    <string>Pivot Results</string>
+   </property>
+  </action>
+  <action name="actionCharge_Balance">
+   <property name="text">
+    <string>Charge Balance</string>
+   </property>
+  </action>
+  <action name="actionExport_Plots">
+   <property name="text">
+    <string>Export Plots</string>
+   </property>
+  </action>
+  <action name="actionClose">
+   <property name="text">
+    <string>Close</string>
+   </property>
+  </action>
+  <action name="actionNew">
+   <property name="text">
+    <string>New</string>
+   </property>
+  </action>
+  <action name="actionExport_Shapefile">
+   <property name="text">
+    <string>Export Shapefile</string>
+   </property>
+  </action>
+  <action name="actionExport_table">
+   <property name="text">
+    <string>Export table</string>
+   </property>
+  </action>
+  <action name="actionUGS_Data_in_the_WQP">
+   <property name="text">
+    <string>UGS Data in the WQP</string>
+   </property>
+  </action>
+  <action name="actionFrom_SDE_requires_login">
+   <property name="text">
+    <string>From SDE (requires login)</string>
    </property>
   </action>
  </widget>

@@ -100,7 +100,7 @@ class TableModel(QtCore.QAbstractTableModel):
         self.beginInsertRows(QtCore.QModelIndex(), row_count, row_count)
         empty_data = {key: None for key in self._data.columns if not key=='_id'}
 
-        self._data.append(empty_data, ignore_index=True)
+        self._data = self._data.append(empty_data, ignore_index=True)
         row_count += 1
         self.endInsertRows()
         return True
@@ -182,6 +182,8 @@ class MainWindow(QtWidgets.QMainWindow):
         df = pd.read_csv(filename)
         self.df = df.dropna(subset=['Latitude', 'Longitude'], how='any')
 
+        self.actionFrom_SDE_requires_login.triggered.connect(self.executeLoginPage)
+
         # initialize and add piper canvas
         self.sc = MplCanvas(self.piperframe)
         #self.sc.axes = self.sc.fig.add_subplot(111, aspect='equal', frameon=False, xticks=[], yticks=[])
@@ -224,8 +226,6 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.ResultTableView.clicked.connect(self.print_row)
         #self.ResultTableView.pressed.connect(self.print_row)
 
-
-
         self.graphresultsbutt.clicked.connect(self.add_selected_piper)
         self.addallpipbutt.clicked.connect(self.add_all_piper)
         self.clearpipbutt.clicked.connect(self.clear_piper)
@@ -245,14 +245,21 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.dlg.exec_():
             print("Success!")
             #self.dlg.chemdata
-            self.StationModel = TableModel(self.dlg.chemdata.ugs_tabs['Station'])
+            dfd = self.dlg.chemdata.ugs_tabs
+            self.add_data(dfd)
+        else:
+            print("Cancel!")
+
+    def add_data(self, dfd):
+        if hasattr(MainWindow,'StationModel') and 'Station' in dfd.keys():
+            self._data.append(dfd['Station'], ignore_index=True)
+        else:
+            self.StationModel = TableModel(dfd['Station'])
             self.StationTableView.setModel(self.StationModel)
             self.delegate = InLineEditDelegate()
             self.StationTableView.setItemDelegate(self.delegate)
             self.selmodel = QItemSelectionModel(self.StationModel)
-            self.map_data(model = self.StationModel,lat='latitude',lon='longitude')
-        else:
-            print("Cancel!")
+            self.map_data(model=self.StationModel, lat='latitude', lon='longitude')
 
     # Takes a df and writes it to a qtable provided. df headers become qtable headers
     # https://stackoverflow.com/questions/31475965/fastest-way-to-populate-qtableview-from-pandas-data-frame
