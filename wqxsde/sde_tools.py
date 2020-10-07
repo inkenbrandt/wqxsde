@@ -142,6 +142,7 @@ class SDEtoWQX(SDEconnect):
         self.config_links['Station'] = self.import_config_url.format(6441)
         self.config_links['Result'] = self.import_config_url.format(5926)
         self.rename = {}
+
         self.rename['Station'] = {'MonitoringLocationIdentifier': 'locationid',
                                   'MonitoringLocationName': 'locationname',
                                   'MonitoringLocationTypeName': 'locationtype',

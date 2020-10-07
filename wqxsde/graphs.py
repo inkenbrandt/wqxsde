@@ -1,3 +1,4 @@
+
 """
 Code from
 @article {GWAT:GWAT12118,
@@ -15,7 +16,11 @@ year = {2014},
 }
 
 """
+from __future__ import absolute_import, division, print_function, unicode_literals
 
+import pandas as pd
+from collections import OrderedDict
+from datetime import datetime, timedelta
 # Load required packages
 import numpy as np
 import matplotlib.pyplot as plt
@@ -84,7 +89,7 @@ def rgb2hex(r, g, b):
     return hex
 
 
-def piper(arrays, plottitle, use_color, fig=None, ax=None, **kwargs):
+def piper(arrays, plottitle, use_color, fig=None, ax=None, *args, **kwargs):
     """Create a Piper plot:
 
     Args:
@@ -363,3 +368,274 @@ if __name__ == "__main__":
     plt.xlim(bbox[0], bbox[2])
     plt.ylim(bbox[1], bbox[3])
     plt.grid()
+
+
+class RectPiper(object):
+    """Class that generates rectangular piper diagrams.
+    :param df: DataFrame containing chemistry data; must have fields labeled as abbreviations of the major ions; Na, K,
+    NaK, Ca, Mg, Cl, HCO3, CO3, and SO4
+    :type df: pandas.core.frame.DataFrame
+    :param type_col: Name of field that designates the sample type (optional); defaults to ''
+    :type type_col: str
+    :param var_col: Name of field that contains a scalar variable to be designated by color (optional); defaults to ''
+    :type var_col: str
+    .. note::
+    Hydrochemistry - Construct Rectangular Piper plot
+    Adopted from: Ray and Mukherjee, 2008, Groundwater 46(6): 893-896 and from code found at:
+    http://python.hydrology-amsterdam.nl/scripts/piper_rectangular.py
+    Based on code by:
+    B.M. van Breukelen <b.m.vanbreukelen@vu.nl>
+
+    """
+
+    def __init__(self, df, type_col='', var_col=''):
+
+        self.fieldnames = [u'Na', u'K', u'NaK', u'Ca', u'Mg', u'Cl', u'HCO3', u'CO3', u'SO4']
+        self.anions = ['Cl', 'HCO3', 'CO3', 'SO4']
+        self.cations = ['Na', 'K', 'Ca', 'Mg', 'NaK']
+        self.piperplot(df, type_col, var_col)
+
+    def fillMissing(self, df):
+
+        # fill in nulls with 0
+        for col in df.columns:
+            if col in self.fieldnames:
+                for i in df.index:
+                    if df.loc[i, col] is None or df.loc[i, col] == '' or np.isnan(df.loc[i, col]):
+                        df.loc[i, col] = 0
+            else:
+                df.col = 0
+
+        # add missing columns
+        for name in self.fieldnames:
+            if name in df.columns:
+                pass
+            else:
+                print(name)
+                df[name] = 0
+
+        return df
+
+    def check_nak(self, x):
+        if x[0] == 0 and x[2] > 0:
+            return x[2]
+        else:
+            return x[0] + x[1]
+
+    def convertIons(self, df):
+        """Convert major ion concentrations from mg/L to meq
+        This function uses conversion factors to convert the concentrations of major ions from mg/L to meq.  It also
+        appends a field to the input database listing the Cation-Anion pair that have the highest meq concentrations.
+        :param df: DataFrame containing chemistry data; must have fields labeled as abbreviations of the major ions; Na, K,
+        NaK, Ca, Mg, Cl, HCO3, CO3, and SO4
+        :returns: appends convert fields onto DataFrame with the suffix `_meq` and adds the fields 'water type', 'CBE'
+        (charge balance), 'EC' (Sum(anions+cations))
+        """
+        # Conversion factors from mg/L to meq/L
+        d = {'Ca': 0.04990269, 'Mg': 0.082287595, 'Na': 0.043497608, 'K': 0.02557656, 'Cl': 0.028206596,
+             'NaK': 0.043497608,
+             'HCO3': 0.016388838, 'CO3': 0.033328223, 'SO4': 0.020833333, 'NO2': 0.021736513, 'NO3': 0.016129032}
+
+        df1 = df
+
+        for name in self.fieldnames:
+            if name in df.columns:
+                df1[name + '_meq'] = df1[name].apply(lambda x: float(d.get(name, 0)) * x, 1)
+
+        df1['NaK_meq'] = df1[['Na_meq', 'K_meq', 'NaK_meq']].apply(lambda x: self.check_nak(x), 1)
+
+        df1['anions'] = 0
+        df1['cations'] = 0
+
+        for ion in self.anions:
+            if ion in df.columns:
+                df1['anions'] += df1[ion + '_meq']
+        for ion in self.cations:
+            if ion in df1.columns:
+                df1['cations'] += df1[ion + '_meq']
+
+        df1['total_ions'] = df1['cations'] + df1['anions']
+        df1['EC'] = df1['anions'] - df1['cations']
+        df1['CBE'] = df1['EC'] / (df1['anions'] + df1['cations'])
+        df1['maj_cation'] = df1[['Ca_meq', 'Mg_meq', 'Na_meq', 'K_meq', 'NaK_meq']].idxmax(axis=1)
+        df1['maj_anion'] = df1[['Cl_meq', 'SO4_meq', 'HCO3_meq', 'CO3_meq']].idxmax(axis=1)
+        df1['water_type'] = df1[['maj_cation', 'maj_anion']].apply(lambda x: str(x[0])[:-4] + '-' + str(x[1])[:-4], 1)
+        return df1
+
+    def ionPercentage(self, df):
+        """Determines percentage of charge for each ion for display on the piper plot"""
+        for ion in self.anions:
+            df[ion + 'EC'] = df[[ion + '_meq', 'anions']].apply(lambda x: 100 * x[0] / x[1], 1)
+        for ion in self.cations:
+            df[ion + 'EC'] = df[[ion + '_meq', 'cations']].apply(lambda x: 100 * x[0] / x[1], 1)
+
+        return df
+
+    def piperplot(self, df, type_col, var_col):
+        """Generates a rectangular piper diagram"""
+        self.fillMissing(df)
+        self.convertIons(df)
+        self.ionPercentage(df)
+
+        CaEC = df['CaEC'].values
+        MgEC = df['MgEC'].values
+        ClEC = df['ClEC'].values
+        SO4EC = df['SO4EC'].values
+        NaKEC = df['NaKEC'].values
+        SO4ClEC = df[['ClEC', 'SO4EC']].apply(lambda x: x[0] + x[1], 1).values
+
+        num_samps = len(df)
+        if var_col == '':
+            Elev = ''
+        else:
+            Elev = df[var_col].values
+
+        if type_col == '':
+            typ = ['Station'] * num_samps
+            stationtypes = ['Station']
+        else:
+            stationtypes = list(df[type_col].unique())
+            typ = df[type_col].values
+
+        # Change default settings for figures
+        plt.rc('xtick', labelsize=10)
+        plt.rc('ytick', labelsize=10)
+        plt.rc('font', size=12)
+        plt.rc('legend', fontsize=12)
+        plt.rc('figure', figsize=(14, 5.5))  # defines size of Figure window orig (14,4.5)
+
+        markSize = 30
+        lineW = 0.5
+
+        # Make Figure
+        fig = plt.figure()
+        # add title
+        # fig.suptitle(piperTitle, x=0.20,y=.98, fontsize=14 )
+        # Colormap and Saving Options for Figure
+
+        if len(Elev) > 0:
+            vart = Elev
+        else:
+            vart = [1] * num_samps
+        cNorm = plt.Normalize(vmin=min(vart), vmax=max(vart))
+        cmap = plt.cm.coolwarm
+        # pdf = PdfPages(fileplace)
+
+        mrkrSymbl = ['v', '^', '+', 's', '.', 'o', '*', 'v', '^', '+', 's', ',', '.', 'o', '*', 'v', '^', '+', 's', ',',
+                     '.', 'o', '*', 'v', '^', '+', 's', ',', '.', 'o', '*']
+
+        # count variable for legend (n)
+        unique, counts = np.unique(typ, return_counts=True)
+        nstatTypesDict = dict(zip(unique, counts))
+
+        typdict = {}
+        for i in range(len(stationtypes)):
+            typdict[stationtypes[i]] = mrkrSymbl[i]
+
+        # CATIONS-----------------------------------------------------------------------------
+        # 2 lines below needed to create 2nd y-axis (ax1b) for first subplot
+        ax1 = fig.add_subplot(131)
+        ax1b = ax1.twinx()
+
+        ax1.fill([100, 0, 100, 100], [0, 100, 100, 0], color=(0.8, 0.8, 0.8))
+        ax1.plot([100, 0], [0, 100], 'k')
+        ax1.plot([50, 0, 50, 50], [0, 50, 50, 0], 'k--')
+        ax1.text(25, 15, 'Na type')
+        ax1.text(75, 15, 'Ca type')
+        ax1.text(25, 65, 'Mg type')
+
+        if len(typ) > 0:
+            for j in range(len(typ)):
+                ax1.scatter(CaEC[j], MgEC[j], s=markSize, c=vart[j], cmap=cmap, norm=cNorm, marker=typdict[typ[j]],
+                            linewidths=lineW)
+        else:
+            ax1.scatter(CaEC, MgEC, s=markSize, c=vart, cmap=cmap, norm=cNorm, linewidths=lineW)
+
+        ax1.set_xlim(0, 100)
+        ax1.set_ylim(0, 100)
+        ax1b.set_ylim(0, 100)
+        ax1.set_xlabel('<= Ca (% meq)')
+        ax1b.set_ylabel('Mg (% meq) =>')
+        plt.setp(ax1, yticklabels=[])
+
+        # next line needed to reverse x axis:
+        ax1.set_xlim(ax1.get_xlim()[::-1])
+
+        # ANIONS----------------------------------------------------------------------------
+        ax = fig.add_subplot(1, 3, 3)
+        ax.fill([100, 100, 0, 100], [0, 100, 100, 0], color=(0.8, 0.8, 0.8))
+        ax.plot([0, 100], [100, 0], 'k')
+        ax.plot([50, 50, 0, 50], [0, 50, 50, 0], 'k--')
+        ax.text(55, 15, 'Cl type')
+        ax.text(5, 15, 'HCO3 type')
+        ax.text(5, 65, 'SO4 type')
+
+        if len(typ) > 0:
+            for j in range(len(typ)):
+                labs = "{:} n= {:}".format(typ[j], nstatTypesDict[typ[j]])
+                if float(nstatTypesDict[typ[j]]) > 1:
+                    s = ax.scatter(ClEC[j], SO4EC[j], s=markSize, c=vart[j], cmap=cmap, norm=cNorm,
+                                   marker=typdict[typ[j]], label=labs, linewidths=lineW)
+                else:
+                    s = ax.scatter(ClEC[j], SO4EC[j], s=markSize, c=vart[j], cmap=cmap, norm=cNorm,
+                                   marker=typdict[typ[j]], label=typ[j], linewidths=lineW)
+        else:
+            s = ax.scatter(ClEC, SO4EC, s=markSize, c=vart, cmap=cmap, norm=cNorm, label='Sample', linewidths=lineW)
+
+        ax.set_xlim(0, 100)
+        ax.set_ylim(0, 100)
+        ax.set_xlabel('Cl (% meq) =>')
+        ax.set_ylabel('SO4 (% meq) =>')
+
+        # CATIONS AND ANIONS COMBINED ---------------------------------------------------------------
+        # 2 lines below needed to create 2nd y-axis (ax1b) for first subplot
+        ax2 = fig.add_subplot(132)
+        ax2b = ax2.twinx()
+
+        ax2.plot([0, 100], [10, 10], 'k--')
+        ax2.plot([0, 100], [50, 50], 'k--')
+        ax2.plot([0, 100], [90, 90], 'k--')
+        ax2.plot([10, 10], [0, 100], 'k--')
+        ax2.plot([50, 50], [0, 100], 'k--')
+        ax2.plot([90, 90], [0, 100], 'k--')
+
+        if len(typ) > 0:
+            for j in range(len(typ)):
+                ax2.scatter(NaKEC[j], SO4ClEC[j], s=markSize, c=vart[j], cmap=cmap, norm=cNorm, marker=typdict[typ[j]],
+                            linewidths=lineW)
+        else:
+            ax2.scatter(NaKEC, SO4ClEC, s=markSize, c=vart, cmap=cmap, norm=cNorm, linewidths=lineW)
+
+        ax2.set_xlim(0, 100)
+        ax2.set_ylim(0, 100)
+        ax2.set_xlabel('Na+K (% meq) =>')
+        ax2.set_ylabel('SO4+Cl (% meq) =>')
+        ax2.set_title('<= Ca+Mg (% meq)', fontsize=12)
+        ax2b.set_ylabel('<= CO3+HCO3 (% meq)')
+        ax2b.set_ylim(0, 100)
+
+        # next two lines needed to reverse 2nd y axis:
+        ax2b.set_ylim(ax2b.get_ylim()[::-1])
+
+        # Align plots
+        plt.subplots_adjust(left=0.05, bottom=0.35, right=0.95, top=0.90, wspace=0.4, hspace=0.0)
+
+        # Legend-----------------------------------------------------------------------------------------
+
+        # Add colorbar below legend
+        # [left, bottom, width, height] where all quantities are in fractions of figure width and height
+
+        if len(typ) > 0:
+            handles, labels = ax.get_legend_handles_labels()
+            by_label = OrderedDict(zip(labels, handles))
+
+            plt.legend(by_label.values(), by_label.keys(), loc='lower center', ncol=5, shadow=False, fancybox=True,
+                       bbox_to_anchor=(0.5, -0.3), scatterpoints=1)
+
+        if len(Elev) > 0:
+            cax = fig.add_axes([0.25, 0.10, 0.50, 0.02])
+            cb1 = plt.colorbar(s, cax=cax, cmap=cmap, norm=cNorm, orientation='horizontal')  # use_gridspec=True
+            cb1.set_label(var_col, size=8)
+
+        self.plot = fig
+        self.df = df

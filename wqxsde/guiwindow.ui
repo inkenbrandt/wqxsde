@@ -75,7 +75,7 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
          <item>
-          <widget class="QWebEngineView" name="stationmap" native="true">
+          <widget class="QWebEngineView" name="stationmap">
            <property name="minimumSize">
             <size>
              <width>250</width>
@@ -88,7 +88,7 @@
              <height>800</height>
             </size>
            </property>
-           <property name="url" stdset="0">
+           <property name="url">
             <url>
              <string>about:blank</string>
             </url>
@@ -253,152 +253,117 @@
        </property>
        <layout class="QVBoxLayout" name="verticalLayout_4">
         <item>
-         <widget class="QTabWidget" name="tabletabs">
-          <property name="currentIndex">
-           <number>1</number>
+         <widget class="QFrame" name="frame_7">
+          <property name="frameShape">
+           <enum>QFrame::StyledPanel</enum>
           </property>
-          <widget class="QWidget" name="StationTab_2">
-           <attribute name="title">
-            <string>Stations</string>
-           </attribute>
-           <layout class="QHBoxLayout" name="horizontalLayout_5">
-            <item>
-             <widget class="QTableView" name="StationTableView"/>
-            </item>
-            <item>
-             <widget class="QFrame" name="frame_3">
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_7">
+          <property name="frameShadow">
+           <enum>QFrame::Raised</enum>
+          </property>
+          <layout class="QHBoxLayout" name="horizontalLayout_7">
+           <item>
+            <widget class="QTabWidget" name="tabletabs">
+             <property name="currentIndex">
+              <number>0</number>
+             </property>
+             <widget class="QWidget" name="StationTab_2">
+              <attribute name="title">
+               <string>Stations</string>
+              </attribute>
+              <layout class="QHBoxLayout" name="horizontalLayout_5">
                <item>
-                <widget class="QPushButton" name="plotstationsbutt_2">
-                 <property name="text">
-                  <string>Plot</string>
-                 </property>
-                </widget>
+                <widget class="QTableView" name="StationTableView"/>
                </item>
                <item>
-                <widget class="QPushButton" name="highlightstationsbutt_2">
-                 <property name="text">
-                  <string>Highlight</string>
+                <widget class="QFrame" name="frame_3">
+                 <property name="frameShape">
+                  <enum>QFrame::StyledPanel</enum>
                  </property>
+                 <property name="frameShadow">
+                  <enum>QFrame::Raised</enum>
+                 </property>
+                 <layout class="QVBoxLayout" name="verticalLayout_7"/>
                 </widget>
                </item>
+              </layout>
+             </widget>
+             <widget class="QWidget" name="ResultTab_2">
+              <attribute name="title">
+               <string>Results</string>
+              </attribute>
+              <layout class="QHBoxLayout" name="horizontalLayout_6">
                <item>
-                <widget class="QPushButton" name="exportstationsbutt_2">
-                 <property name="text">
-                  <string>Export</string>
+                <widget class="QTableView" name="ResultTableView">
+                 <property name="selectionBehavior">
+                  <enum>QAbstractItemView::SelectRows</enum>
                  </property>
                 </widget>
                </item>
               </layout>
              </widget>
-            </item>
-           </layout>
-          </widget>
-          <widget class="QWidget" name="ResultTab_2">
-           <attribute name="title">
-            <string>Results</string>
-           </attribute>
-           <layout class="QHBoxLayout" name="horizontalLayout_6">
-            <item>
-             <widget class="QTableView" name="ResultTableView">
-              <property name="selectionBehavior">
-               <enum>QAbstractItemView::SelectRows</enum>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QFrame" name="frame_4">
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_8">
-               <item alignment="Qt::AlignHCenter">
-                <widget class="QLabel" name="label_3">
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>20</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>Selected</string>
-                 </property>
-                </widget>
-               </item>
+             <widget class="QWidget" name="tab">
+              <attribute name="title">
+               <string>Activities</string>
+              </attribute>
+              <layout class="QHBoxLayout" name="horizontalLayout">
                <item>
-                <widget class="QPushButton" name="graphresultsbutt1">
-                 <property name="text">
-                  <string>Add to Piper</string>
+                <widget class="QTableView" name="ActivityTableView">
+                 <property name="editTriggers">
+                  <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
                  </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="clear">
-                 <property name="text">
-                  <string>Highlight</string>
+                 <property name="alternatingRowColors">
+                  <bool>true</bool>
                  </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QPushButton" name="exportresultsbutt_2">
-                 <property name="text">
-                  <string>Export</string>
+                 <property name="sortingEnabled">
+                  <bool>true</bool>
                  </property>
                 </widget>
                </item>
               </layout>
              </widget>
-            </item>
-           </layout>
-          </widget>
-          <widget class="QWidget" name="tab">
-           <attribute name="title">
-            <string>Activities</string>
-           </attribute>
-           <layout class="QHBoxLayout" name="horizontalLayout">
-            <item>
-             <widget class="QTableWidget" name="ActivitiesTableWidget">
-              <property name="editTriggers">
-               <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed|QAbstractItemView::SelectedClicked</set>
-              </property>
-              <property name="alternatingRowColors">
-               <bool>true</bool>
-              </property>
-              <property name="sortingEnabled">
-               <bool>true</bool>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QFrame" name="frame">
-              <property name="frameShape">
-               <enum>QFrame::StyledPanel</enum>
-              </property>
-              <property name="frameShadow">
-               <enum>QFrame::Raised</enum>
-              </property>
-              <layout class="QVBoxLayout" name="verticalLayout_6">
-               <item>
-                <widget class="QPushButton" name="pushButton">
-                 <property name="text">
-                  <string>PushButton</string>
-                 </property>
-                </widget>
-               </item>
-              </layout>
-             </widget>
-            </item>
-           </layout>
-          </widget>
+            </widget>
+           </item>
+           <item>
+            <widget class="QFrame" name="frame_8">
+             <property name="frameShape">
+              <enum>QFrame::StyledPanel</enum>
+             </property>
+             <property name="frameShadow">
+              <enum>QFrame::Raised</enum>
+             </property>
+             <layout class="QVBoxLayout" name="verticalLayout_3">
+              <item>
+               <widget class="QPushButton" name="pushButton_2">
+                <property name="text">
+                 <string>PushButton</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="exportstationsbutt_2">
+                <property name="text">
+                 <string>Export</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="plotstationsbutt_2">
+                <property name="text">
+                 <string>Plot</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="highlightstationsbutt_2">
+                <property name="text">
+                 <string>Highlight</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
         <item>
@@ -535,6 +500,7 @@
     </property>
     <addaction name="actionPivot_Results"/>
     <addaction name="actionCharge_Balance"/>
+    <addaction name="actionTrend_Analysis"/>
    </widget>
    <addaction name="menuFile"/>
    <addaction name="menuSelect"/>
@@ -666,6 +632,11 @@
   <action name="actionFrom_SDE_requires_login">
    <property name="text">
     <string>From SDE (requires login)</string>
+   </property>
+  </action>
+  <action name="actionTrend_Analysis">
+   <property name="text">
+    <string>Trend Analysis</string>
    </property>
   </action>
  </widget>

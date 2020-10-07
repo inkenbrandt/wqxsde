@@ -5,7 +5,8 @@
 # https://www.learnpyqt.com/courses/graphics-plotting/plotting-matplotlib/
 # https://www.learnpyqt.com/courses/model-views/qtableview-modelviews-numpy-pandas/
 # https://stackoverflow.com/questions/29734471/qtablewidget-current-selection-change-signal
-
+# https://wiki.python.org/moin/PyQt/Reading%20selections%20from%20a%20selection%20model
+# https://stackoverflow.com/questions/22577327/how-to-retrieve-the-selected-row-of-a-qtableview
 #https://www.youtube.com/watch?v=Gpw6BygkUCw
 from PyQt5 import QtCore, QtWidgets, QtWebEngineWidgets, uic, QtGui
 from PyQt5.QtGui import *
@@ -131,7 +132,6 @@ class InLineEditDelegate(QtWidgets.QItemDelegate):
     """
     Delegate is important for inline editing of cells
     """
-
     def createEditor(self, parent, option, index):
         return super(InLineEditDelegate, self).createEditor(parent, option, index)
 
@@ -169,6 +169,29 @@ class LoginPage(QDialog):
         self.name = QFileDialog.getExistingDirectory(self, 'Save File')
         print(self.name)
 
+class WQPPage(QDialog):
+    def __init__(self, *args, **kwargs):
+        super(WQPPage, self).__init__(*args, **kwargs)
+        uic.loadUi('wqpdialog.ui', self)
+
+        #self.wqpdata = None
+        #self.bbtoplat.valueChanged.connect()
+        self.buttonBox.accepted.connect(self.acceptspin)
+        # self.buttonBox.accepted.connect(wqxsde.SDEtoWQX(usernm, userpw, self.name))
+        self.buttonBox.rejected.connect(self.reject)
+
+    def acceptspin(self):
+        tlat = self.bbtoplat.value()
+        tlon = self.bbtoplon.value()
+        blat = self.bbbotlat.value()
+        blon = self.bbbotlon.value()
+
+        print(f'{tlon},{tlat},{blon},{blat}')
+        self.wqpdata = wqxsde.WQP(f'{tlon},{blat},{blon},{tlat}','bBox')
+
+        self.accept()
+        # self.close()
+
 
 class MainWindow(QtWidgets.QMainWindow):
 
@@ -182,46 +205,23 @@ class MainWindow(QtWidgets.QMainWindow):
         df = pd.read_csv(filename)
         self.df = df.dropna(subset=['Latitude', 'Longitude'], how='any')
 
-        self.actionFrom_SDE_requires_login.triggered.connect(self.executeLoginPage)
-
-        # initialize and add piper canvas
+        # Setup Piper Diagram for plotting
         self.sc = MplCanvas(self.piperframe)
-        #self.sc.axes = self.sc.fig.add_subplot(111, aspect='equal', frameon=False, xticks=[], yticks=[])
-        # Create toolbar, passing canvas as first parament, parent (self, the MainWindow) as second.
         toolbar = NavigationToolbar(self.sc, self.piperframe)
         layout = QtWidgets.QVBoxLayout()
         layout.addWidget(toolbar)
         layout.addWidget(self.sc)
         self.piperframe.setLayout(layout)
 
-        m = folium.Map(location=[self.df['Latitude'].mean(),
-                                 self.df['Longitude'].mean()],
-                       tiles="Stamen Toner", zoom_start=13)
-
-        for i in self.df.index:
-            tooltip = self.df.loc[i, 'additional-field']
-            folium.Marker([self.df.loc[i, 'Latitude'], self.df.loc[i, 'Longitude']],
-                          popup=f"<i>{self.df.loc[i, 'K']}</i>", tooltip=tooltip).add_to(m)
-
-        sw = df[['Latitude', 'Longitude']].min().values.tolist()
-        ne = df[['Latitude', 'Longitude']].max().values.tolist()
-
-        m.fit_bounds([sw, ne])
-
-        data = io.BytesIO()
-        m.save(data, close_file=False)
-
-        self.stationmap.setHtml(data.getvalue().decode())
-        # w.resize(500, 250)
-        self.stationmap.show()
-
-        self.model = TableModel(self.df)
-        self.delegate = InLineEditDelegate()
-        self.ResultTableView.setModel(self.model)
-        self.ResultTableView.setItemDelegate(self.delegate)
-        self.ResultTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-        self.ResultTableView.customContextMenuRequested.connect(self.context_menu)
-        self.selmodel = QItemSelectionModel(self.model)
+        self.actionFrom_SDE_requires_login.triggered.connect(self.executeLoginPage)
+        self.actionDownload_Here.triggered.connect(self.executeWQPPage)
+        #self.model = TableModel(self.df)
+        #self.delegate = InLineEditDelegate()
+        #self.ResultTableView.setModel(self.model)
+        #self.ResultTableView.setItemDelegate(self.delegate)
+        #self.ResultTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        #self.ResultTableView.customContextMenuRequested.connect(self.context_menu)
+        #self.selmodel = QItemSelectionModel(self.model)
         #self.ActivitiesTableView.setModel(self.model)
         #self.ResultTableView.clicked.connect(self.print_row)
         #self.ResultTableView.pressed.connect(self.print_row)
@@ -233,14 +233,27 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.model.flags(QtCore.Qt.ItemIsEditable)
         #self.model.itemSelectionChanged.connect(self.print_row)
 
-        self.write_df_to_qtable(self.df, self.ActivitiesTableWidget)
+        #self.write_df_to_qtable(self.df, self.ActivitiesTableWidget)
 
         #self.ActivitiesTableWidget.itemSelectionChanged.connect(self.print_row)
         self.importsdebutt.clicked.connect(self.executeLoginPage)
 
-    def executeLoginPage(self, s):
-        print("click", s)
+    def executeWQPPage(self, s):
+        self.wqpdlg = WQPPage(self)
+        if self.wqpdlg.exec_():
+            print("Success!")
 
+            wqp = self.wqpdlg.wqpdata
+            dfd = {}
+            dfd['Result'] = wqp.results
+            dfd['Station'] = wqp.stations
+            dfd['Activity'] = wqp.activities
+
+            self.add_data(dfd)
+        else:
+            print("Cancel!")
+
+    def executeLoginPage(self, s):
         self.dlg = LoginPage(self)
         if self.dlg.exec_():
             print("Success!")
@@ -258,8 +271,25 @@ class MainWindow(QtWidgets.QMainWindow):
             self.StationTableView.setModel(self.StationModel)
             self.delegate = InLineEditDelegate()
             self.StationTableView.setItemDelegate(self.delegate)
-            self.selmodel = QItemSelectionModel(self.StationModel)
+            self.statselmodel = QItemSelectionModel(self.StationModel)
             self.map_data(model=self.StationModel, lat='latitude', lon='longitude')
+        if hasattr(MainWindow,'ResultModel') and 'Result' in dfd.keys():
+            self._data.append(dfd['Result'], ignore_index=True)
+        else:
+            self.ResultModel = TableModel(dfd['Result'])
+            self.ResultTableView.setModel(self.ResultModel)
+            self.delegate = InLineEditDelegate()
+            self.ResultTableView.setItemDelegate(self.delegate)
+            self.resselmodel = QItemSelectionModel(self.ResultModel)
+        if hasattr(MainWindow,'ActivityModel') and 'Activity' in dfd.keys():
+            self._data.append(dfd['Activity'], ignore_index=True)
+        else:
+            self.ActivityModel = TableModel(dfd['Activity'])
+            self.ActivityTableView.setModel(self.ActivityModel)
+            self.delegate = InLineEditDelegate()
+            self.ActivityTableView.setItemDelegate(self.delegate)
+            self.actselmodel = QItemSelectionModel(self.ActivityModel)
+
 
     # Takes a df and writes it to a qtable provided. df headers become qtable headers
     # https://stackoverflow.com/questions/31475965/fastest-way-to-populate-qtableview-from-pandas-data-frame
@@ -284,9 +314,9 @@ class MainWindow(QtWidgets.QMainWindow):
 
         m = folium.Map(location=[model._data[lat].mean(),
                                  model._data[lon].mean()],
-                       tiles="Stamen Toner", zoom_start=13)
+                       tiles="Stamen Terrain", zoom_start=13)
 
-        for i in self.model._data.index:
+        for i in model._data.index:
             tooltip = i
 
             if sellist and i in model._data.iloc[sellist, 2:-1].index:
@@ -319,9 +349,11 @@ class MainWindow(QtWidgets.QMainWindow):
     def add_selected_piper(self):
         self.sc.axes.cla()
         self.sc.axes = self.sc.fig.add_subplot(111, aspect='equal', frameon=False, xticks=[], yticks=[])
-        items = self.ResultTableView.selectionModel().selectedRows()
+        items = self.ActivityTableView.selectionModel().selectedRows()
+        #TODO Connect Results Stations and Activities with Selection
+        #stats = self.StationTableView._data.
         sellist = [i.row() for i in items]
-        arr =  self.model._data.iloc[sellist,2:-1].to_numpy()
+        arr =  self.ActivityModel._data.iloc[sellist][['Ca','Mg','Na','K','HCO3','CO3','Cl','SO4']].to_numpy()
         print(arr)
         arrays =[[arr,{"label": 'data', "facecolor": "red"}]]
         wqxsde.piper(arrays, "title", use_color=True,
@@ -332,7 +364,8 @@ class MainWindow(QtWidgets.QMainWindow):
     def add_all_piper(self):
         markers = ["s", "o", "^", "v", "+", "x"]
         arrays = []
-        for i, (label, group_df) in enumerate(self.model._data.groupby("additional-field")):
+        for i, (label, group_df) in enumerate(self.ActivityModel
+                                                      ._data.groupby("additional-field")):
             arr = group_df.iloc[:, 2:10].values
             arrays.append([arr, {"label": label,
                                  "marker": markers[i],

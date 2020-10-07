@@ -7,9 +7,9 @@ import os
 import wqxsde
 from wqxsde.sde_tools import *
 from wqxsde.wqpget import *
-from wqxsde.piper import *
 from wqxsde.map_file_gui import *
-
+from wqxsde.ros import *
+from wqxsde.graphs import *
 
 __version__ = '0.0.1'
 __author__ = 'Paul Inkenbrandt'

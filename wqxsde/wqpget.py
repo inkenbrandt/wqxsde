@@ -38,8 +38,10 @@ class WQP(object):
         self.geo_criteria = ['sites', 'stateCd', 'huc', 'countyCd', 'bBox','organization']
         #self.cTgroups = ['Inorganics, Major, Metals', 'Inorganics, Major, Non-metals', 'Nutrient', 'Physical']
         self.results = self.get_wqp_results('Result', **kwargs)
+        self.massage_results()
         self.stations = self.get_wqp_stations('Station', **kwargs)
-        self.activities = self.get_wqp_activities('Activity',**kwargs)
+        self.massage_stations()
+        self.activities = self.piv_chem(chems='piper')#self.get_wqp_activities('Activity',**kwargs)
 
     def get_response(self, service, **kwargs):
         """ Returns a dictionary of data requested by each function.
@@ -52,8 +54,8 @@ class WQP(object):
         # try:
         kwargs[self.loc_type] = self.values
         kwargs['mimeType'] = 'csv'
-        kwargs['zip'] = 'no'
-        kwargs['sorted'] = 'no'
+        kwargs['zip'] = 'yes'
+        #kwargs['sorted'] = 'no'
 
         #if 'siteType' not in kwargs:
         #    kwargs['sampleMedia'] = 'Water'
@@ -73,7 +75,7 @@ class WQP(object):
     def get_wqp_stations(self, service, **kwargs):
         nwis_dict = self.get_response(service, **kwargs).url
 
-        stations = pd.read_csv(nwis_dict)
+        stations = pd.read_csv(nwis_dict, compression='zip')
         return stations
 
     def get_wqp_results(self, service, **kwargs):
@@ -125,7 +127,8 @@ class WQP(object):
         csv = self.get_response(service, **kwargs).url
         print(csv)
         # read csv into DataFrame
-        df = pd.read_csv(csv, dtype=Rdtypes, parse_dates=dt)
+        df = pd.read_csv(csv, dtype=Rdtypes, parse_dates=dt, compression='zip')
+        #df = pd.read_csv(csv, dtype=Rdtypes, parse_dates=dt)
         return df
 
     def massage_results(self, df = ''):
@@ -143,6 +146,7 @@ class WQP(object):
             df = self.results
 
         # Map new names for columns
+        #TODO Match Field names to those in the SDE
         ResFieldDict = {"AnalysisStartDate": "AnalysisDate", "ResultAnalyticalMethod/MethodIdentifier": "AnalytMeth",
                         "ResultAnalyticalMethod/MethodName": "AnalytMethId",
                         "ResultDetectionConditionText": "DetectCond",
@@ -169,18 +173,23 @@ class WQP(object):
                         "ResultMeasure/MeasureUnitCode": "Unit", "USGSPCode": "USGSPCode"}
 
         # Rename Data
-        df = self.results
+        #df = self.results
         df1 = df.rename(columns=ResFieldDict)
 
         # Remove unwanted and bad times
         df1["SampleDate"] = df1[["SampleDate", "SampleTime"]].apply(lambda x: self.datetimefix(x, "%Y-%m-%d %H:%M"), 1)
 
         # Define unneeded fields to drop
+        #TODO make sure not to remove fields that are in the UGS SDE
         resdroplist = ["ActivityBottomDepthHeightMeasure/MeasureUnitCode",
                        "ActivityBottomDepthHeightMeasure/MeasureValue",
-                       "ActivityConductingOrganizationText", "ActivityEndDate", "ActivityEndTime/Time",
-                       "ActivityEndTime/TimeZoneCode", "ActivityMediaName", "ActivityStartTime/TimeZoneCode",
-                       "ActivityTopDepthHeightMeasure/MeasureUnitCode", "ActivityTopDepthHeightMeasure/MeasureValue",
+                       "ActivityConductingOrganizationText",
+                       "ActivityEndDate", "ActivityEndTime/Time",
+                       "ActivityEndTime/TimeZoneCode",
+                       "ActivityMediaName",
+                       "ActivityStartTime/TimeZoneCode",
+                       "ActivityTopDepthHeightMeasure/MeasureUnitCode",
+                       "ActivityTopDepthHeightMeasure/MeasureValue",
                        "HydrologicCondition", "HydrologicEvent", "PrecisionValue", "PreparationStartDate",
                        "ProviderName",
                        "ResultAnalyticalMethod/MethodIdentifierContext", "ResultDepthAltitudeReferencePointText",
@@ -210,7 +219,7 @@ class WQP(object):
         df1['Param'], df1['ResultValue'], df1['Unit'] = zip(
             *df1[['Param', 'ResultValue', 'Unit']].apply(lambda x: self.parnorm(x), 1))
 
-        #self.results = df1
+        self.results = df1
 
         return df1
 
@@ -290,6 +299,7 @@ class WQP(object):
     def massage_stations(self):
         """Massage WQP station data for analysis
         """
+        #TODO match to fields in UGS SDE
         StatFieldDict = {"MonitoringLocationIdentifier": "StationId", "AquiferName": "Aquifer",
                          "AquiferTypeName": "AquiferType",
                          "ConstructionDateText": "ConstDate", "CountyCode": "CountyCode",
@@ -306,7 +316,7 @@ class WQP(object):
                          "HorizontalAccuracyMeasure/MeasureUnitCode": "HorAccUnit",
                          "HorizontalCollectionMethodName": "HorCollMeth",
                          "HorizontalCoordinateReferenceSystemDatumName": "HorRef",
-                         "HUCEightDigitCode": "HUC8", "LatitudeMeasure": "Lat_Y", "LongitudeMeasure": "Lon_X",
+                         "HUCEightDigitCode": "HUC8", "LatitudeMeasure": "latitude", "LongitudeMeasure": "longitude",
                          "OrganizationIdentifier": "OrgId", "OrganizationFormalName": "OrgName",
                          "StateCode": "StateCode",
                          "MonitoringLocationDescriptionText": "StationComment", "MonitoringLocationName": "StationName",
@@ -348,7 +358,7 @@ class WQP(object):
 
         if results == '':
             results = self.results
-
+        #print(results.columns)
         ParAbb = {"Alkalinity": "Alk", "Alkalinity, Carbonate as CaCO3": "Alk", "Alkalinity, total": "Alk",
                   "Arsenic": "As", "Calcium": "Ca", "Chloride": "Cl", "Carbon dioxide": "CO2", "Carbonate": "CO3",
                   "Carbonate (CO3)": "CO3", "Specific conductance": "Cond", "Conductivity": "Cond", "Copper": "Cu",
