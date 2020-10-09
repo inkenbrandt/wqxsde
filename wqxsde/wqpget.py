@@ -30,18 +30,84 @@ class WQP(object):
     """
 
     def __init__(self, values, loc_type, **kwargs):
-        r"""Downloads Water Quality Data from thw Water Quality Portal based on parameters entered
+        """Downloads Water Quality Data from thw Water Quality Portal based on parameters entered
         """
         self.loc_type = loc_type
         self.values = values
         self.url = 'https://www.waterqualitydata.us/'
         self.geo_criteria = ['sites', 'stateCd', 'huc', 'countyCd', 'bBox','organization']
         #self.cTgroups = ['Inorganics, Major, Metals', 'Inorganics, Major, Non-metals', 'Nutrient', 'Physical']
+
+        self.rename = {}
+
+        self.rename['Station'] = {'MonitoringLocationIdentifier': 'locationid',
+                                  'MonitoringLocationName': 'locationname',
+                                  'MonitoringLocationTypeName': 'locationtype',
+                                  'HUCEightDigitCode': 'huc8',
+                                  'LatitudeMeasure': 'latitude',
+                                  'LongitudeMeasure': 'longitude',
+                                  'HorizontalCollectionMethodName': 'horizontalcollectionmethod',
+                                  'HorizontalCoordinateReferenceSystemDatumName': 'horizontalcoordrefsystem',
+                                  'VerticalMeasure/MeasureValue': 'verticalmeasure',
+                                  'VerticalMeasure/MeasureUnitCode': 'verticalunit',
+                                  'VerticalCollectionMethodName': 'verticalcollectionmethod',
+                                  'VerticalCoordinateReferenceSystemDatumName': 'verticalcoordrefsystem',
+                                  'StateCode': 'state',
+                                  'CountyCode': 'county',
+                                  'AquiferName': 'aquifername',
+                                  'WellDepthMeasure/MeasureValue': 'welldepth',
+                                  'WellDepthMeasure/MeasureUnitCode': 'welldepthmeasureunit'}
+
+        self.rename['Activity'] = {'ActivityIdentifier': 'activityid',
+                                   'ProjectIdentifier': 'projectid',
+                                   'MonitoringLocationIdentifier': 'monitoringlocationid',
+                                   'ActivityStartDate': 'activitystartdate',
+                                   'ActivityStartTime/Time': 'activitystarttime'}
+
+        self.rename['Result'] = {'ActivityIdentifier': 'activityid',
+                                 'MonitoringLocationIdentifier': 'monitoringlocationid',
+                                 'ResultDetectionConditionText': 'resultdetectioncondition',
+                                 'CharacteristicName': 'characteristicname',
+                                 'ResultSampleFractionText': 'resultsamplefraction',
+                                 'ResultMeasureValue': 'resultvalue',
+                                 'ResultMeasure/MeasureUnitCode': 'resultunit',
+                                 'MeasureQualifierCode': 'resultqualifier',
+                                 'ResultAnalyticalMethod/MethodIdentifierContext': 'resultanalyticalmethodcontext',
+                                 'ResultAnalyticalMethod/MethodName': 'resultanalyticalmethodid',
+                                 'LaboratoryName': 'laboratoryname',
+                                 'AnalysisStartDate': 'analysisstartdate',
+                                 'DetectionQuantitationLimitTypeName': 'resultdetecquantlimittype',
+                                 'DetectionQuantitationLimitMeasure/MeasureValue': 'detecquantlimitmeasure',
+                                 'DetectionQuantitationLimitMeasure/MeasureUnitCode': 'resultdetecquantlimitunit',
+                                 "ActivityStartDate": "sampledate",
+                                 "ActivityIdentifier": "sampleid",
+                                 "ActivityStartTime/Time": "sampletime"
+                                 }
+
+        self.ParAbb = {"Alkalinity": "Alk", "Alkalinity, Carbonate as CaCO3": "Alk", "Alkalinity, total": "Alk",
+                  "Arsenic": "As", "Calcium": "Ca", "Chloride": "Cl", "Carbon dioxide": "CO2", "Carbonate": "CO3",
+                  "Carbonate (CO3)": "CO3", "Specific conductance": "Cond", "Conductivity": "Cond", "Copper": "Cu",
+                  "Depth": "Depth", "Dissolved oxygen (DO)": "DO", "Iron": "Fe",
+                  "Hardness, Ca, Mg": "Hard", "Total hardness -- SDWA NPDWR": "Hard",
+                  "Bicarbonate": "HCO3", "Potassium": "K", "Magnesium": "Mg", "Kjeldahl nitrogen": "N",
+                  "Nitrogen, mixed forms (NH3), (NH4), organic, (NO2) and (NO3)": "N", "Nitrogen": "N", "Sodium": "Na",
+                  "Sodium plus potassium": "NaK", "Ammonia-nitrogen": "NH3_N", "Ammonia-nitrogen as N": "N",
+                  "Nitrite": "NO2",
+                  "Nitrate": "NO3", "Nitrate as N": "N", "pH, lab": "pH", "pH": "pH", "Phosphate-phosphorus": "PO4",
+                  "Orthophosphate": "PO4", "Phosphate": "PO4", "Stream flow, instantaneous": "Q", "Flow": "Q",
+                  "Flow rate, instantaneous": "Q", "Silica": "Si", "Sulfate": "SO4", "Sulfate as SO4": "SO4",
+                  "Boron": "B", "Barium": "Ba", "Bromine": "Br", "Lithium": "Li", "Manganese": "Mn", "Strontium": "Sr",
+                  "Total dissolved solids": "TDS", "Temperature, water": "Temp",
+                  "Total Organic Carbon": "TOC", "delta Dueterium": "d2H", "delta Oxygen 18": "d18O",
+                  "delta Carbon 13 from Bicarbonate": "d13CHCO3", "delta Oxygen 18 from Bicarbonate": "d18OHCO3",
+                  "Total suspended solids": "TSS", "Turbidity": "Turb"}
+
         self.results = self.get_wqp_results('Result', **kwargs)
         self.massage_results()
         self.stations = self.get_wqp_stations('Station', **kwargs)
         self.massage_stations()
-        self.activities = self.piv_chem(chems='piper')#self.get_wqp_activities('Activity',**kwargs)
+        self.activities = self.piv_chem(chems='')#self.get_wqp_activities('Activity',**kwargs)
+
 
     def get_response(self, service, **kwargs):
         """ Returns a dictionary of data requested by each function.
@@ -139,8 +205,6 @@ class WQP(object):
         - parses the datetime fields, fixing errors when possible (see :func:`datetimefix`)
         - standardizes units to mg/L
         - normalizes nutrient species(See :func:`parnorm`)
-
-
         """
         if df == '':
             df = self.results
@@ -174,10 +238,10 @@ class WQP(object):
 
         # Rename Data
         #df = self.results
-        df1 = df.rename(columns=ResFieldDict)
+        df1 = df.rename(columns=self.rename['Result'])
 
         # Remove unwanted and bad times
-        df1["SampleDate"] = df1[["SampleDate", "SampleTime"]].apply(lambda x: self.datetimefix(x, "%Y-%m-%d %H:%M"), 1)
+        df1["sampledate"] = df1[["sampledate", "sampletime"]].apply(lambda x: self.datetimefix(x, "%Y-%m-%d %H:%M"), 1)
 
         # Define unneeded fields to drop
         #TODO make sure not to remove fields that are in the UGS SDE
@@ -192,32 +256,37 @@ class WQP(object):
                        "ActivityTopDepthHeightMeasure/MeasureValue",
                        "HydrologicCondition", "HydrologicEvent", "PrecisionValue", "PreparationStartDate",
                        "ProviderName",
-                       "ResultAnalyticalMethod/MethodIdentifierContext", "ResultDepthAltitudeReferencePointText",
+                       "ResultDepthAltitudeReferencePointText",
                        "ResultDepthHeightMeasure/MeasureUnitCode", "ResultDepthHeightMeasure/MeasureValue",
                        "ResultParticleSizeBasisText", "ResultTemperatureBasisText",
                        "ResultTimeBasisText", "ResultValueTypeName", "ResultWeightBasisText", "SampleAquifer",
-                       "SampleCollectionMethod/MethodIdentifierContext", "SampleTissueAnatomyName",
+                       "SampleTissueAnatomyName",
                        "StatisticalBaseCode",
                        "SubjectTaxonomicName", "SampleTime"]
 
         # Drop fields
-        df1 = df1.drop(resdroplist, axis=1)
+        for i in resdroplist:
+            if i in df1.columns:
+                df1 = df1.drop(i, axis=1)
 
         # convert results and mdl to float
-        df1['ResultValue'] = pd.to_numeric(df1['ResultValue'], errors='coerce')
-        df1['MDL'] = pd.to_numeric(df1['MDL'], errors='coerce')
+        df1['resultvalue'] = pd.to_numeric(df1['resultvalue'], errors='coerce')
+        df1['detecquantlimitmeasure'] = pd.to_numeric(df1['detecquantlimitmeasure'], errors='coerce')
 
         # match old and new station ids
-        df1['StationId'] = df1['StationId'].str.replace('_WQX-', '-')
+        df1['monitoringlocationid'] = df1['monitoringlocationid'].str.replace('_WQX-', '-')
 
         # standardize all ug/l data to mg/l
-        df1.Unit = df1.Unit.apply(lambda x: str(x).rstrip(), 1)
-        df1.ResultValue = df1[["ResultValue", "Unit"]].apply(
+        df1.resultunit = df1.resultunit.apply(lambda x: str(x).rstrip(), 1)
+        df1.resultvalue = df1[["resultvalue", "resultunit"]].apply(
             lambda x: x[0] / 1000 if str(x[1]).lower() == "ug/l" else x[0], 1)
-        df1.Unit = df1.Unit.apply(lambda x: self.unitfix(x), 1)
+        df1.resultunit = df1.resultunit.apply(lambda x: self.unitfix(x), 1)
 
-        df1['Param'], df1['ResultValue'], df1['Unit'] = zip(
-            *df1[['Param', 'ResultValue', 'Unit']].apply(lambda x: self.parnorm(x), 1))
+        #df1['characteristicname'], df1['resultvalue'], df1['resultunit'] = zip(
+        #    *df1[['characteristicname', 'resultvalue', 'resultunit']].apply(lambda x: self.parnorm(x), 1))
+
+        df1['characteristicname'], df1['methodspeciation'], df1['resultunit'] = zip(
+            *df1[['characteristicname', 'resultunit']].apply(lambda x: self.makemethspec(x), 1))
 
         self.results = df1
 
@@ -279,6 +348,26 @@ class WQP(object):
         else:
             return x[0], x[1], str(x[2]).rstrip()
 
+    def makemethspec(self, x):
+        p = str(x[0]).rstrip().lstrip().lower()
+        u = str(x[1]).rstrip().lstrip().lower()
+        if p == 'nitrate' and u == 'mg/l as n':
+            return 'Nitrate', 'as N', 'mg/l'
+        elif p == 'nitrite' and u == 'mg/l as n':
+            return 'Nitrite', 'as N', 'mg/l'
+        elif p == 'ammonia-nitrogen' or p == 'ammonia-nitrogen as n' or p == 'ammonia and ammonium':
+            return 'Ammonium', 'as N', 'mg/l'
+        elif p == 'ammonium' and u == 'mg/l as n':
+            return 'Ammonium', 'as N', 'mg/l'
+        elif p == 'sulfate as s':
+            return 'Sulfate', 'as S', 'mg/l'
+        elif p in ('phosphate-phosphorus', 'phosphate-phosphorus as p', 'orthophosphate as p'):
+            return 'Phosphate', 'as N', 'mg/l'
+        elif (p == 'phosphate' or p == 'orthophosphate') and u == 'mg/l as p':
+            return 'Phosphate', 'as P', 'mg/l'
+        else:
+            return x[0], None, x[1]
+
     def unitfix(self, x):
         """Standardizes unit labels from ug/l to mg/l
 
@@ -300,30 +389,9 @@ class WQP(object):
         """Massage WQP station data for analysis
         """
         #TODO match to fields in UGS SDE
-        StatFieldDict = {"MonitoringLocationIdentifier": "StationId", "AquiferName": "Aquifer",
-                         "AquiferTypeName": "AquiferType",
-                         "ConstructionDateText": "ConstDate", "CountyCode": "CountyCode",
-                         "WellDepthMeasure/MeasureValue": "Depth",
-                         "WellDepthMeasure/MeasureUnitCode": "DepthUnit", "VerticalMeasure/MeasureValue": "Elev",
-                         "VerticalAccuracyMeasure/MeasureValue": "ElevAcc",
-                         "VerticalAccuracyMeasure/MeasureUnitCode": "ElevAccUnit",
-                         "VerticalCollectionMethodName": "ElevMeth",
-                         "VerticalCoordinateReferenceSystemDatumName": "ElevRef",
-                         "VerticalMeasure/MeasureUnitCode": "ElevUnit", "FormationTypeText": "FmType",
-                         "WellHoleDepthMeasure/MeasureValue": "HoleDepth",
-                         "WellHoleDepthMeasure/MeasureUnitCode": "HoleDUnit",
-                         "HorizontalAccuracyMeasure/MeasureValue": "HorAcc",
-                         "HorizontalAccuracyMeasure/MeasureUnitCode": "HorAccUnit",
-                         "HorizontalCollectionMethodName": "HorCollMeth",
-                         "HorizontalCoordinateReferenceSystemDatumName": "HorRef",
-                         "HUCEightDigitCode": "HUC8", "LatitudeMeasure": "latitude", "LongitudeMeasure": "longitude",
-                         "OrganizationIdentifier": "OrgId", "OrganizationFormalName": "OrgName",
-                         "StateCode": "StateCode",
-                         "MonitoringLocationDescriptionText": "StationComment", "MonitoringLocationName": "StationName",
-                         "MonitoringLocationTypeName": "StationType"}
 
         df = self.stations
-        df.rename(columns=StatFieldDict, inplace=True)
+        df.rename(columns=self.rename['Station'], inplace=True)
 
         statdroplist = ["ContributingDrainageAreaMeasure/MeasureUnitCode",
                         "ContributingDrainageAreaMeasure/MeasureValue",
@@ -337,12 +405,12 @@ class WQP(object):
                     "Well: Test hole not completed as a well": "Well"}
 
         # Make station types in the StationType field consistent for easier summary and compilation later on.
-        df.StationType = df["StationType"].apply(lambda x: TypeDict.get(x, x), 1)
-        df.Elev = df.Elev.apply(lambda x: np.nan if x == 0.0 else round(x, 1), 1)
+        df['locationtype'] = df['locationtype'].apply(lambda x: TypeDict.get(x, x), 1)
+        df['verticalmeasure'] = df['verticalmeasure'].apply(lambda x: np.nan if x == 0.0 else round(x, 1), 1)
 
         # Remove preceding WQX from StationId field to remove duplicate station data created by legacy database.
-        df['StationId'] = df['StationId'].str.replace('_WQX-', '-')
-        df.drop_duplicates(subset=['StationId'], inplace=True)
+        df['locationid'] = df['locationid'].str.replace('_WQX-', '-')
+        df.drop_duplicates(subset=['locationid'], inplace=True)
         #self.stations = df
         return df
 
@@ -359,29 +427,12 @@ class WQP(object):
         if results == '':
             results = self.results
         #print(results.columns)
-        ParAbb = {"Alkalinity": "Alk", "Alkalinity, Carbonate as CaCO3": "Alk", "Alkalinity, total": "Alk",
-                  "Arsenic": "As", "Calcium": "Ca", "Chloride": "Cl", "Carbon dioxide": "CO2", "Carbonate": "CO3",
-                  "Carbonate (CO3)": "CO3", "Specific conductance": "Cond", "Conductivity": "Cond", "Copper": "Cu",
-                  "Depth": "Depth", "Dissolved oxygen (DO)": "DO", "Iron": "Fe",
-                  "Hardness, Ca, Mg": "Hard", "Total hardness -- SDWA NPDWR": "Hard",
-                  "Bicarbonate": "HCO3", "Potassium": "K", "Magnesium": "Mg", "Kjeldahl nitrogen": "N",
-                  "Nitrogen, mixed forms (NH3), (NH4), organic, (NO2) and (NO3)": "N", "Nitrogen": "N", "Sodium": "Na",
-                  "Sodium plus potassium": "NaK", "Ammonia-nitrogen": "NH3_N", "Ammonia-nitrogen as N": "N",
-                  "Nitrite": "NO2",
-                  "Nitrate": "NO3", "Nitrate as N": "N", "pH, lab": "pH", "pH": "pH", "Phosphate-phosphorus": "PO4",
-                  "Orthophosphate": "PO4", "Phosphate": "PO4", "Stream flow, instantaneous": "Q", "Flow": "Q",
-                  "Flow rate, instantaneous": "Q", "Silica": "Si", "Sulfate": "SO4", "Sulfate as SO4": "SO4",
-                  "Boron": "B", "Barium": "Ba", "Bromine": "Br", "Lithium": "Li", "Manganese": "Mn", "Strontium": "Sr",
-                  "Total dissolved solids": "TDS", "Temperature, water": "Temp",
-                  "Total Organic Carbon": "TOC", "delta Dueterium": "d2H", "delta Oxygen 18": "d18O",
-                  "delta Carbon 13 from Bicarbonate": "d13CHCO3", "delta Oxygen 18 from Bicarbonate": "d18OHCO3",
-                  "Total suspended solids": "TSS", "Turbidity": "Turb"}
 
-        results['ParAbb'] = results['Param'].apply(lambda x: ParAbb.get(x, ''), 1)
-        results.dropna(subset=['SampleId'], how='any', inplace=True)
-        results = results[pd.isnull(results['DetectCond'])]
-        results.drop_duplicates(subset=['SampleId', 'ParAbb'], inplace=True)
-        datap = results.pivot(index='SampleId', columns='ParAbb', values='ResultValue')
+        results['ParAbb'] = results['characteristicname'].apply(lambda x: self.ParAbb.get(x, ''), 1)
+        results.dropna(subset=['sampleid'], how='any', inplace=True)
+        results = results[pd.isnull(results['resultdetectioncondition'])]
+        results.drop_duplicates(subset=['sampleid', 'ParAbb'], inplace=True)
+        datap = results.pivot(index='sampleid', columns='ParAbb', values='resultvalue')
         if chems == '':
             pass
         elif chems == 'piper':

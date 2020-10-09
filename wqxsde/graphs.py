@@ -639,3 +639,81 @@ class RectPiper(object):
 
         self.plot = fig
         self.df = df
+
+
+""" 
+__author__ = "B.M. van Breukelen <b.m.vanbreukelen@vu.nl>"
+__version__ = "1.0"
+__date__ = "Nov 2012"
+Hydrochemistry: Constructs multiple Stiff plots
+
+    - Prepare an input text file. Observations are expected have meq/l units with parameters in the order: Cl, HCO3, SO4, Na+K, Ca, Mg
+
+    - Example input file. If observations are missing, label them as -9999:
+
+    Type Cl HCO3 SO4 NaK Ca Mg EC NO3 Sicc
+    1 1.72 4.02 0.58 1.40 4.53 0.79 672.00 0.40 0.21
+    2 0.90 1.28 0.54 0.90 1.44 0.74 308.00 0.36 0.56
+    2 4.09 4.29 0.38 3.38 4.74 0.72 884.00 0.08 0.15
+
+    - Insert the correct file name and delimiter in the loadtxt() statement
+
+    - Specify legend for figure
+
+    - Run the script and look at the plot
+
+    Development date: 8/5/2011
+"""
+
+# First always functions need to be imported
+# -------------------------------------------------------------------------------- #
+
+
+# Make Figure
+# -------------------------------------------------------------------------------- #
+def stiff(obs, nosamples):
+    fig, ax = plt.subplots(nosamples, 1, sharex=True)
+    sID = 0
+    for i in obs.index:
+        x = [-1*obs.loc[i, 'NaK'], -1*obs.loc[i, 'Ca'], -1*obs.loc[i, 'Mg'],
+             obs.loc[i, 'SO4'], obs.loc[i, 'HCO3'], obs.loc[i, 'Cl'], -obs.loc[i, 'NaK']]
+        y = [3, 2, 1, 1, 2, 3, 3]
+        markersize = 12
+        linewidth = 2
+        xtickpositions = [-5., -3., -1., 0., 1., 3., 5.]  # desired xtickpositions for graphs
+        #plt.hold(True)
+        # define x coordinates of fill
+
+        wtrtype = {1:'r',2:'b',3:'c',4:'g',5:'m'}
+        if 'watertype' in obs.columns:
+        # Stiff plots with color depending on water type
+            h1 = ax[sID].fill(x, y, wtrtype.get(obs.loc[i,'watertype'],None))
+
+        plt.plot([0, 0], [1, 3], 'w')
+
+        # NO3 plotted as extra circle
+        if 'NO3' in obs.columns:
+            h6 = ax[sID].plot(5. * obs.loc[i, 'NO3'], 1, 'yo', ms=markersize)
+        elif "CaCO3" in obs.columns:
+            # SI Calcite plotted as extra square
+            h7 = ax[sID].plot(2 * obs.loc[i, 9], 2, 'ks', ms=markersize)
+
+        # Add legend at one selected stiff diagram
+        if i == 1:
+            ax[sID].text(-4.5, 2.9, 'Na+K')
+            ax[sID].text(-4.5, 1.9, 'Ca')
+            ax[sID].text(-4.5, 0.9, 'Mg')
+            ax[sID].text(2.5, 2.9, 'Cl')
+            ax[sID].text(2.5, 1.9, 'HCO3')
+            ax[sID].text(2.5, 0.9, 'SO4')
+            # xlabel('(meq/L)')
+            ax[sID].set_xticks(xtickpositions)
+            xticklabels = ('5', '3', '1', '0', '-1', '-3', '-5')
+
+        ax[sID].ylim(0.8, 3.2)
+        ax[sID].xlim(-5.2, 5.2)
+        ax[sID].set_xticks(xtickpositions)
+        #ax[sID].setp(gca(), yticks=[], yticklabels=[])
+        sID += 1
+    plt.legend()
+    plt.show()
