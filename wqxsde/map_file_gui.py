@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
-
+import requests
 import pandas as pd
 
 
@@ -180,16 +180,63 @@ class WQPPage(QDialog):
         # self.buttonBox.accepted.connect(wqxsde.SDEtoWQX(usernm, userpw, self.name))
         self.buttonBox.rejected.connect(self.reject)
 
+        self.states = {'':0,'Alabama': 1, 'Alaska': 2, 'Arizona': 4, 'Arkansas': 5, 'California': 6, 'Colorado': 8,
+                  'Connecticut': 9, 'Delaware': 10, 'Florida': 12, 'Georgia': 13, 'Hawaii': 15, 'Idaho': 16,
+                  'Illinois': 17, 'Indiana': 18, 'Iowa': 19, 'Kansas': 20, 'Kentucky': 21, 'Louisiana': 22,
+                  'Maine': 23, 'Maryland': 24, 'Massachusetts': 25, 'Michigan': 26, 'Minnesota': 27, 'Mississippi': 28,
+                  'Missouri': 29, 'Montana': 30, 'Nebraska': 31, 'Nevada': 32, 'New Hampshire': 33, 'New Jersey': 34,
+                  'New Mexico': 35, 'New York': 36, 'North Carolina': 37, 'North Dakota': 38, 'Ohio': 39, 'Oklahoma': 40,
+                  'Oregon': 41, 'Pennsylvania': 42, 'Rhode Island': 44, 'South Carolina': 45, 'South Dakota': 46,
+                  'Tennessee': 47, 'Texas': 48, 'Utah': 49, 'Vermont': 50, 'Virginia': 51, 'Washington': 53,
+                  'West Virginia': 54, 'Wisconsin': 55, 'Wyoming': 56, 'American Samoa': 60, 'Guam': 66,
+                  'Northern Mariana Islands': 69, 'Puerto Rico': 72, 'Virgin Islands': 78}
+
+        self.statecombo.addItems(self.states.keys())
+        self.statecombo.currentTextChanged.connect(self.get_county)
+
+        self.punits = {'m': 0.000621371, 'km': 0.621371, 'mi': 1, 'ft': 0.000189394}
+        self.distunitcombo.addItems(self.punits.keys())
+        #self.distunitcombo.currentTextChanged.connect(self.get_dis)
+        #self.buttonGroup.buttonToggled.connect(lambda: self.btnstate(self.buttonGroup))
+
+    def get_dis(self, value):
+        self.finaldis = self.punits[value]*self.distancespin.value()
+        #self.wqpdata = wqxsde.WQP(f'{self.finaldis},{self.plat},{self.plon}', 'within')
+
     def acceptspin(self):
-        tlat = self.bbtoplat.value()
-        tlon = self.bbtoplon.value()
-        blat = self.bbbotlat.value()
-        blon = self.bbbotlon.value()
+        if self.buttonGroup.checkedButton().text() == "DISTANCE FROM POINT":
 
-        print(f'{tlon},{tlat},{blon},{blat}')
-        self.wqpdata = wqxsde.WQP(f'{tlon},{blat},{blon},{tlat}','bBox')
+            self.finaldis = self.punits[self.distunitcombo.currentText()] * self.distancespin.value()
+            self.wqpdata = wqxsde.WQP([self.finaldis,self.wqpypnt.value(),self.wqpxpnt.value()], 'rad')
+        elif self.buttonGroup.checkedButton().text() == "BBOX":
+            tlat = self.bbtoplat.value()
+            tlon = self.bbtoplon.value()
+            blat = self.bbbotlat.value()
+            blon = self.bbbotlon.value()
 
+            print(f'{tlon},{tlat},{blon},{blat}')
+            self.wqpdata = wqxsde.WQP(f'{tlon},{blat},{blon},{tlat}','bBox')
+        elif self.buttonGroup.checkedButton().text() == "COUNTY":
+            st = f"{self.states[self.statecombo.currentText()]:02d}"
+            co = self.countyfips[self.countycombo.currentText()]
+            self.wqpdata = wqxsde.WQP([st, co],'countyCd')
         self.accept()
+
+    def get_county(self, value):
+        i = self.states[value]
+        urlcounties = f"https://tigerweb.geo.census.gov/arcgis/rest/services/TIGERweb/State_County/MapServer/1/query?where=STATE+%3D+{i}&outFields=COUNTY%2CNAME&text=&objectIds=&time=&geometry=&geometryType=esriGeometryEnvelope&inSR=&spatialRel=esriSpatialRelIntersects&relationParam=&outFields=&returnGeometry=false&returnTrueCurves=false&maxAllowableOffset=&geometryPrecision=&outSR=&returnIdsOnly=false&returnCountOnly=false&returnZ=false&returnM=false&returnDistinctValues=false&returnExtentsOnly=false&rangeValues=&f=pjson"
+        if i > 0:
+            js = requests.get(urlcounties).json()['features']
+            if len(js) > 0:
+                self.countycombo.clear()
+                df = pd.DataFrame(js)
+                df['names'] = df['attributes'].apply(lambda x: x['NAME'],1)
+                df['county'] = df['attributes'].apply(lambda x: x['COUNTY'], 1)
+                self.countycombo.addItems(sorted(df['names'].values))
+                df = df.set_index('names').drop(['attributes'], axis=1)
+                self.countyfips = df.to_dict()['county']
+        else:
+            self.countycombo.clear()
 
 
 class MainWindow(QtWidgets.QMainWindow):
@@ -220,12 +267,39 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clearpipbutt.clicked.connect(self.clear_piper)
 
         self.importsdebutt.clicked.connect(self.executeLoginPage)
-        self.activityselection = self.ActivityTableView.selectionModel()
+        #self.activityselection = self.ActivityTableView.selectionModel()
+        #self.ActivityTableView.verticalHeader().sectionClicked.connect(self.testchange)
+        #self.activityselection.modelChanged.connect(self.testchange)
         #self.ActivityTableView.clicked.connect(self.testchange)
 
 
-    def testchange(self,s):
-        print('Selection Changed')
+    def resultsel(self, s):
+        self.resultselection = self.ResultTableView.selectionModel()
+
+        indexes = self.resultselection.selectedRows()
+        indices = [i.row() for i in sorted(indexes)]
+        print(self.ResultModel._data.iloc[indices,:])
+
+    def stationsel(self,s):
+        self.stationselection = self.StationTableView.selectionModel()
+
+        indexes = self.stationselection.selectedRows(column=2)
+        df = self.ResultModel._data
+        role = Qt.DisplayRole
+        dg = df[df['monitoringlocationid'].isin([self.StationModel.data(i, role) for i in indexes])]
+        print(dg)
+        mode = QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows
+        for i in dg.index:
+            self.ResultTableView.selectRow(i)
+        #for i in dg.index:
+        #    self.ResultTableView.selectRow(i)
+
+    def activitysel(self, s):
+        self.activityselection = self.ActivityTableView.selectionModel()
+
+        indexes = self.activityselection.selectedRows()
+        indices = [i.row() for i in sorted(indexes)]
+        print(self.ActivityModel._data.iloc[indices,:])
 
     def executeWQPPage(self, s):
         self.wqpdlg = WQPPage(self)
@@ -239,7 +313,7 @@ class MainWindow(QtWidgets.QMainWindow):
             dfd['Activity'] = wqp.activities
 
             self.add_data(dfd)
-            self.activityselection.selectionChanged.connect(self.testchange)
+            #self.activityselection.selectionChanged.connect(self.testchange)
         else:
             print("Cancel!")
 
@@ -258,38 +332,60 @@ class MainWindow(QtWidgets.QMainWindow):
     def add_data(self, dfd):
         #TODO Prevent Duplication of Index
         if hasattr(MainWindow,'StationModel') and 'Station' in dfd.keys():
-            self._data.append(dfd['Station'], ignore_index=True)
+            self.StationModel._data.append(dfd['Station'], ignore_index=True)
         else:
             self.StationModel = TableModel(dfd['Station'])
             self.StationTableView.setModel(self.StationModel)
+            self.stationproxymodel = QSortFilterProxyModel()
+            self.stationproxymodel.setSourceModel(self.StationModel)
+            self.StationTableView.setSortingEnabled(True)
+            self.StationTableView.setModel(self.stationproxymodel)
             self.delegate = InLineEditDelegate()
             self.StationTableView.setItemDelegate(self.delegate)
             self.StationTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             self.StationTableView.customContextMenuRequested.connect(self.context_menu)
+            self.StationTableView.verticalHeader().sectionClicked.connect(self.stationsel)
             self.statselmodel = QItemSelectionModel(self.StationModel)
             self.map_data(lat='latitude', lon='longitude')
         if hasattr(MainWindow,'ResultModel') and 'Result' in dfd.keys():
-            self._data.append(dfd['Result'], ignore_index=True)
+            self.ResultModel._data.append(dfd['Result'], ignore_index=True)
         else:
             self.ResultModel = TableModel(dfd['Result'])
             self.ResultTableView.setModel(self.ResultModel)
+            self.resultproxymodel = QSortFilterProxyModel()
+            self.resultproxymodel.setSourceModel(self.ResultModel)
+            self.ResultTableView.setSortingEnabled(True)
+            self.ResultTableView.setModel(self.resultproxymodel)
             self.delegate = InLineEditDelegate()
             self.ResultTableView.setItemDelegate(self.delegate)
             self.ResultTableView.setItemDelegate(self.delegate)
             self.ResultTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+
+            self.ResultTableView.verticalHeader().sectionClicked.connect(self.resultsel)
             self.resselmodel = QItemSelectionModel(self.ResultModel)
+
+
         if hasattr(MainWindow,'ActivityModel') and 'Activity' in dfd.keys():
-            self._data.append(dfd['Activity'], ignore_index=True)
+            self.ActivityModel._data.append(dfd['Activity'], ignore_index=True)
         else:
             self.ActivityModel = TableModel(dfd['Activity'])
             self.ActivityTableView.setModel(self.ActivityModel)
+            self.activityproxymodel = QSortFilterProxyModel()
+            self.activityproxymodel.setSourceModel(self.ActivityModel)
+            self.ActivityTableView.setSortingEnabled(True)
+            self.ActivityTableView.setModel(self.activityproxymodel)
             self.delegate = InLineEditDelegate()
             self.ActivityTableView.setItemDelegate(self.delegate)
             self.ActivityTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             self.ActivityTableView.setItemDelegate(self.delegate)
+
+            self.ActivityTableView.verticalHeader().sectionClicked.connect(self.activitysel)
             self.actselmodel = QItemSelectionModel(self.ActivityModel)
 
-
+        self.clrBycomboBox.clear()
+        self.clrBycomboBox.addItems(self.ActivityModel._data.columns)
+        self.grpbycombo.clear()
+        self.grpbycombo.addItems(self.ActivityModel._data.columns)
     # Takes a df and writes it to a qtable provided. df headers become qtable headers
     # https://stackoverflow.com/questions/31475965/fastest-way-to-populate-qtableview-from-pandas-data-frame
     def write_df_to_qtable(self, df, table):

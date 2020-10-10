@@ -35,7 +35,7 @@ class WQP(object):
         self.loc_type = loc_type
         self.values = values
         self.url = 'https://www.waterqualitydata.us/'
-        self.geo_criteria = ['sites', 'stateCd', 'huc', 'countyCd', 'bBox','organization']
+        self.geo_criteria = ['sites', 'stateCd', 'huc', 'countyCd', 'bBox','organization','rad']
         #self.cTgroups = ['Inorganics, Major, Metals', 'Inorganics, Major, Non-metals', 'Nutrient', 'Physical']
 
         self.rename = {}
@@ -84,23 +84,67 @@ class WQP(object):
                                  "ActivityStartTime/Time": "sampletime"
                                  }
 
-        self.ParAbb = {"Alkalinity": "Alk", "Alkalinity, Carbonate as CaCO3": "Alk", "Alkalinity, total": "Alk",
-                  "Arsenic": "As", "Calcium": "Ca", "Chloride": "Cl", "Carbon dioxide": "CO2", "Carbonate": "CO3",
-                  "Carbonate (CO3)": "CO3", "Specific conductance": "Cond", "Conductivity": "Cond", "Copper": "Cu",
-                  "Depth": "Depth", "Dissolved oxygen (DO)": "DO", "Iron": "Fe",
-                  "Hardness, Ca, Mg": "Hard", "Total hardness -- SDWA NPDWR": "Hard",
-                  "Bicarbonate": "HCO3", "Potassium": "K", "Magnesium": "Mg", "Kjeldahl nitrogen": "N",
-                  "Nitrogen, mixed forms (NH3), (NH4), organic, (NO2) and (NO3)": "N", "Nitrogen": "N", "Sodium": "Na",
-                  "Sodium plus potassium": "NaK", "Ammonia-nitrogen": "NH3_N", "Ammonia-nitrogen as N": "N",
-                  "Nitrite": "NO2",
-                  "Nitrate": "NO3", "Nitrate as N": "N", "pH, lab": "pH", "pH": "pH", "Phosphate-phosphorus": "PO4",
-                  "Orthophosphate": "PO4", "Phosphate": "PO4", "Stream flow, instantaneous": "Q", "Flow": "Q",
-                  "Flow rate, instantaneous": "Q", "Silica": "Si", "Sulfate": "SO4", "Sulfate as SO4": "SO4",
-                  "Boron": "B", "Barium": "Ba", "Bromine": "Br", "Lithium": "Li", "Manganese": "Mn", "Strontium": "Sr",
-                  "Total dissolved solids": "TDS", "Temperature, water": "Temp",
-                  "Total Organic Carbon": "TOC", "delta Dueterium": "d2H", "delta Oxygen 18": "d18O",
-                  "delta Carbon 13 from Bicarbonate": "d13CHCO3", "delta Oxygen 18 from Bicarbonate": "d18OHCO3",
-                  "Total suspended solids": "TSS", "Turbidity": "Turb"}
+        self.ParAbb = {"Alkalinity": "Alk",
+                       "Alkalinity, Carbonate as CaCO3": "Alk",
+                       "Alkalinity, total": "Alk",
+                       "Arsenic": "As",
+                       "Calcium": "Ca",
+                       "Chloride": "Cl",
+                       "Carbon dioxide": "CO2",
+                       "Carbonate": "CO3",
+                       "Carbonate (CO3)": "CO3",
+                       "Specific conductance": "Cond",
+                       "Conductivity": "Cond",
+                       "Copper": "Cu",
+                       "Depth": "Depth",
+                       "Dissolved oxygen (DO)": "DO",
+                       "Iron": "Fe",
+                       "Hardness, Ca, Mg": "Hard",
+                       "Total hardness -- SDWA NPDWR": "Hard",
+                       "Bicarbonate": "HCO3",
+                       "Potassium": "K",
+                       "Magnesium": "Mg",
+                       "Kjeldahl nitrogen": "N",
+                       "Nitrogen, mixed forms (NH3), (NH4), organic, (NO2) and (NO3)": "N",
+                       "Inorganic nitrogen (nitrate and nitrite)": "N",
+                       "Nitrogen": "N",
+                       "Sodium": "Na",
+                       "Sodium plus potassium": "NaK",
+                       "Ammonia-nitrogen": "NH3_N",
+                       "Ammonia-nitrogen as N": "N",
+                       "Nitrite": "NO2",
+                       "Nitrate": "NO3",
+                       "Nitrate as N": "N",
+                       "pH, lab": "pH",
+                       "pH": "pH",
+                       "Phosphate-phosphorus": "PO4",
+                       "Orthophosphate": "PO4",
+                       "Phosphate": "PO4",
+                       "Stream flow, instantaneous": "Q",
+                       "Flow": "Q",
+                       "Flow rate, instantaneous": "Q",
+                       "Silica": "Si",
+                       "Sulfate": "SO4",
+                       "Sulfate as SO4": "SO4",
+                       "Boron": "B",
+                       "Barium": "Ba",
+                       "Cadmium":"Cd",
+                       "Bromine": "Br",
+                       "Lithium": "Li",
+                       "Manganese": "Mn",
+                       "Nickel":"Ni",
+                       "Selenium": "Se",
+                       "Strontium": "Sr",
+                       "Silver":"Ag",
+                       "Total dissolved solids": "TDS",
+                       "Temperature, water": "Temp",
+                       "Total Organic Carbon": "TOC",
+                       "delta Dueterium": "d2H",
+                       "delta Oxygen 18": "d18O",
+                       "delta Carbon 13 from Bicarbonate": "d13CHCO3",
+                       "delta Oxygen 18 from Bicarbonate": "d18OHCO3",
+                       "Total suspended solids": "TSS",
+                       "Turbidity": "Turb"}
 
         self.results = self.get_wqp_results('Result', **kwargs)
         self.massage_results()
@@ -118,7 +162,15 @@ class WQP(object):
                      ' was input incorrectly, or the API is currently down. Please try again.'
         # For python 3.4
         # try:
-        kwargs[self.loc_type] = self.values
+        if self.loc_type == 'rad':
+            kwargs['within'] = self.values[0]
+            kwargs['lat'] = self.values[1]
+            kwargs['long'] = self.values[2]
+        elif self.loc_type == 'countyCd':
+            kwargs['statecode'] = f"US:{self.values[0]}"
+            kwargs['countycode'] = f"US:{self.values[0]}:{self.values[1]}"
+        else:
+            kwargs[self.loc_type] = self.values
         kwargs['mimeType'] = 'csv'
         kwargs['zip'] = 'yes'
         #kwargs['sorted'] = 'no'
@@ -414,6 +466,19 @@ class WQP(object):
         #self.stations = df
         return df
 
+    def chem_lookup(self, chem):
+        print(chem)
+        url = f'https://cdxnodengn.epa.gov/cdx-srs-rest/substance/name/{chem}?qualifier=exact'
+        try:
+            rqob = requests.get(url).json()
+            moleweight = float(rqob[0]['molecularWeight'])
+            moleformula = rqob[0]['molecularFormula']
+            casnumber = rqob[0]['currentCasNumber']
+            epaname = rqob[0]['epaName']
+            return [epaname, moleweight, moleformula, casnumber]
+        except:
+            return [None, None, None, None]
+
     def piv_chem(self, results='', chems='piper'):
         """pivots results DataFrame for input into piper class
 
@@ -428,13 +493,26 @@ class WQP(object):
             results = self.results
         #print(results.columns)
 
-        results['ParAbb'] = results['characteristicname'].apply(lambda x: self.ParAbb.get(x, ''), 1)
+        results['ParAbb'] = results['characteristicname'].apply(lambda x: self.ParAbb.get(x.strip(),''), 1)
         results.dropna(subset=['sampleid'], how='any', inplace=True)
         results = results[pd.isnull(results['resultdetectioncondition'])]
-        results.drop_duplicates(subset=['sampleid', 'ParAbb'], inplace=True)
-        datap = results.pivot(index='sampleid', columns='ParAbb', values='resultvalue')
+        res = results.drop_duplicates(subset=['sampleid', 'ParAbb'])
+        #results = results.set_index(['monitoringlocationid','sampleid','ParAbb','sampledate'])
+        #res = results.reset_index().set_index(['monitoringlocationid','sampleid','ParAbb'])
+
+        #datap = res.unstack(level='ParAbb')#.reset_index()
+        dat = res.pivot(index='sampleid', columns='ParAbb', values='resultvalue')
+        datap = pd.merge(dat.reset_index(),
+                         results[['sampledate','sampleid','monitoringlocationid']],
+                         on='sampleid',how='inner').drop_duplicates(subset=['sampleid'])
+        print(datap.columns)
+        for col in ['sampledate','sampleid','monitoringlocationid']:
+            col = datap.pop(col)
+            datap.insert(1, col.name, col)
+        datap = datap.drop([""], axis=1)
+
         if chems == '':
-            pass
+            datap.dropna(axis=1,how='all')
         elif chems == 'piper':
             datap.dropna(subset=['SO4', 'Cl', 'Ca', 'HCO3', 'pH'], how='any', inplace=True)
         else:

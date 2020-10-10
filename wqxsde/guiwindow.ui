@@ -226,6 +226,16 @@
                <item>
                 <widget class="QComboBox" name="grpbycombo"/>
                </item>
+               <item>
+                <widget class="QLabel" name="label_2">
+                 <property name="text">
+                  <string>TextLabel</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QComboBox" name="clrBycomboBox"/>
+               </item>
               </layout>
              </widget>
             </item>
@@ -264,7 +274,7 @@
            <item>
             <widget class="QTabWidget" name="tabletabs">
              <property name="currentIndex">
-              <number>0</number>
+              <number>2</number>
              </property>
              <widget class="QWidget" name="StationTab_2">
               <attribute name="title">
@@ -272,7 +282,17 @@
               </attribute>
               <layout class="QHBoxLayout" name="horizontalLayout_5">
                <item>
-                <widget class="QTableView" name="StationTableView"/>
+                <widget class="QTableView" name="StationTableView">
+                 <property name="dragEnabled">
+                  <bool>true</bool>
+                 </property>
+                 <property name="sortingEnabled">
+                  <bool>true</bool>
+                 </property>
+                 <attribute name="horizontalHeaderShowSortIndicator" stdset="0">
+                  <bool>true</bool>
+                 </attribute>
+                </widget>
                </item>
                <item>
                 <widget class="QFrame" name="frame_3">
@@ -294,8 +314,17 @@
               <layout class="QHBoxLayout" name="horizontalLayout_6">
                <item>
                 <widget class="QTableView" name="ResultTableView">
+                 <property name="editTriggers">
+                  <set>QAbstractItemView::AnyKeyPressed|QAbstractItemView::DoubleClicked|QAbstractItemView::EditKeyPressed</set>
+                 </property>
+                 <property name="dragEnabled">
+                  <bool>true</bool>
+                 </property>
                  <property name="selectionBehavior">
                   <enum>QAbstractItemView::SelectRows</enum>
+                 </property>
+                 <property name="sortingEnabled">
+                  <bool>true</bool>
                  </property>
                 </widget>
                </item>
@@ -418,7 +447,7 @@
      <x>0</x>
      <y>0</y>
      <width>1041</width>
-     <height>21</height>
+     <height>26</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
