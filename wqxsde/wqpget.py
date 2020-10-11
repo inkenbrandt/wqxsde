@@ -327,7 +327,9 @@ class WQP(object):
 
         # match old and new station ids
         df1['monitoringlocationid'] = df1['monitoringlocationid'].str.replace('_WQX-', '-')
-
+        for col in ['sampledate','sampleid','monitoringlocationid']:
+            col = df1.pop(col)
+            df1.insert(1, col.name, col)
         # standardize all ug/l data to mg/l
         df1.resultunit = df1.resultunit.apply(lambda x: str(x).rstrip(), 1)
         df1.resultvalue = df1[["resultvalue", "resultunit"]].apply(

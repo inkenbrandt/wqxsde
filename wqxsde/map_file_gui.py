@@ -304,7 +304,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def resultsel(self, s):
         indexes = self.resultselection.selectedRows(column=1)
 
-        self.select_in_other_table(indexes, self.ResultModel, self.StationModel)
+        self.select_in_other_table(indexes, self.ResultModel, self.StationModel,'locationid')
         self.select_in_other_table(indexes, self.ResultModel, self.ActivityModel)
 
         self.map_data(lat='latitude', lon='longitude')
@@ -320,10 +320,10 @@ class MainWindow(QtWidgets.QMainWindow):
         self.add_selected_piper()
 
     def activitysel(self, s):
-        indexes = self.activityselection.selectedRows(column=2)
+        indexes = self.activityselection.selectedRows(column=1)
 
         self.select_in_other_table(indexes, self.ActivityModel, self.ResultModel)
-        self.select_in_other_table(indexes, self.ActivityModel, self.StationModel)
+        self.select_in_other_table(indexes, self.ActivityModel, self.StationModel,'locationid')
 
         self.map_data(lat='latitude', lon='longitude')
         self.add_selected_piper()
