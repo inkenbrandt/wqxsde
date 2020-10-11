@@ -194,7 +194,7 @@ class WQPPage(QDialog):
         self.statecombo.addItems(self.states.keys())
         self.statecombo.currentTextChanged.connect(self.get_county)
 
-        self.punits = {'m': 0.000621371, 'km': 0.621371, 'mi': 1, 'ft': 0.000189394}
+        self.punits = {'mi': 1, 'km': 0.621371, 'm': 0.000621371,  'ft': 0.000189394}
         self.distunitcombo.addItems(self.punits.keys())
         #self.distunitcombo.currentTextChanged.connect(self.get_dis)
         #self.buttonGroup.buttonToggled.connect(lambda: self.btnstate(self.buttonGroup))
@@ -251,6 +251,8 @@ class MainWindow(QtWidgets.QMainWindow):
         df = pd.read_csv(filename)
         self.df = df.dropna(subset=['Latitude', 'Longitude'], how='any')
 
+        self.dfd = {}
+
         # Setup Piper Diagram for plotting
         self.sc = MplCanvas(self.piperframe)
         toolbar = NavigationToolbar(self.sc, self.piperframe)
@@ -272,34 +274,59 @@ class MainWindow(QtWidgets.QMainWindow):
         #self.activityselection.modelChanged.connect(self.testchange)
         #self.ActivityTableView.clicked.connect(self.testchange)
 
+    def select_in_other_table(self, indexes, selected_model, to_select_model, join_field = 'monitoringlocationid'):
+        if to_select_model == self.ActivityModel:
+            to_select_view = self.ActivityTableView
+            to_select_selmodel = self.activityselection
+        elif to_select_model == self.ResultModel:
+            to_select_view = self.ResultTableView
+            to_select_selmodel = self.resultselection
+        else:
+            to_select_view = self.StationTableView
+            to_select_selmodel = self.stationselection
+
+        role = Qt.DisplayRole
+        mode = QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows
+        # Pull dataframe of other table you are selecting from
+        dfa = to_select_model._data
+        # Selects matching records based on join field in other dataframe
+        dga = dfa[dfa[join_field].isin([selected_model.data(i, role) for i in indexes])]
+        amodel = to_select_view.model()
+        aselection = QItemSelection()
+
+        for i in dga.index:
+            to_select_view.selectRow(i)
+            amodel_index = amodel.index(i, 0)
+            # Select single row.
+            aselection.select(amodel_index, amodel_index)  # top left, bottom right identical
+        to_select_selmodel.select(aselection, mode)
 
     def resultsel(self, s):
-        self.resultselection = self.ResultTableView.selectionModel()
+        indexes = self.resultselection.selectedRows(column=1)
 
-        indexes = self.resultselection.selectedRows()
-        indices = [i.row() for i in sorted(indexes)]
-        print(self.ResultModel._data.iloc[indices,:])
+        self.select_in_other_table(indexes, self.ResultModel, self.StationModel)
+        self.select_in_other_table(indexes, self.ResultModel, self.ActivityModel)
+
+        self.map_data(lat='latitude', lon='longitude')
+        self.add_selected_piper()
 
     def stationsel(self,s):
-        self.stationselection = self.StationTableView.selectionModel()
-
         indexes = self.stationselection.selectedRows(column=2)
-        df = self.ResultModel._data
-        role = Qt.DisplayRole
-        dg = df[df['monitoringlocationid'].isin([self.StationModel.data(i, role) for i in indexes])]
-        print(dg)
-        mode = QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows
-        for i in dg.index:
-            self.ResultTableView.selectRow(i)
-        #for i in dg.index:
-        #    self.ResultTableView.selectRow(i)
+
+        self.select_in_other_table(indexes, self.StationModel, self.ResultModel)
+        self.select_in_other_table(indexes, self.StationModel, self.ActivityModel)
+
+        self.map_data(lat='latitude', lon='longitude')
+        self.add_selected_piper()
 
     def activitysel(self, s):
-        self.activityselection = self.ActivityTableView.selectionModel()
+        indexes = self.activityselection.selectedRows(column=2)
 
-        indexes = self.activityselection.selectedRows()
-        indices = [i.row() for i in sorted(indexes)]
-        print(self.ActivityModel._data.iloc[indices,:])
+        self.select_in_other_table(indexes, self.ActivityModel, self.ResultModel)
+        self.select_in_other_table(indexes, self.ActivityModel, self.StationModel)
+
+        self.map_data(lat='latitude', lon='longitude')
+        self.add_selected_piper()
 
     def executeWQPPage(self, s):
         self.wqpdlg = WQPPage(self)
@@ -307,12 +334,12 @@ class MainWindow(QtWidgets.QMainWindow):
             print("Success!")
 
             wqp = self.wqpdlg.wqpdata
-            dfd = {}
-            dfd['Result'] = wqp.results
-            dfd['Station'] = wqp.stations
-            dfd['Activity'] = wqp.activities
 
-            self.add_data(dfd)
+            self.dfd['Result'] = wqp.results
+            self.dfd['Station'] = wqp.stations
+            self.dfd['Activity'] = wqp.activities
+
+            self.add_data()
             #self.activityselection.selectionChanged.connect(self.testchange)
         else:
             print("Cancel!")
@@ -322,65 +349,72 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.dlg.exec_():
             print("Success!")
             #self.dlg.chemdata
-            dfd = self.dlg.chemdata.ugs_tabs
-            self.add_data(dfd)
+            self.dfd = self.dlg.chemdata.ugs_tabs
+            self.add_data()
         else:
             print("Cancel!")
 
-
-
-    def add_data(self, dfd):
+    def add_data(self):
         #TODO Prevent Duplication of Index
-        if hasattr(MainWindow,'StationModel') and 'Station' in dfd.keys():
-            self.StationModel._data.append(dfd['Station'], ignore_index=True)
+        self.delegate = InLineEditDelegate()
+        if hasattr(self,'StationModel') and 'Station' in self.dfd.keys():
+            print("adding data")
+            self.StationModel._data = self.StationModel._data.append(self.dfd['Station'], ignore_index=True)
+            self.map_data(lat='latitude', lon='longitude')
         else:
-            self.StationModel = TableModel(dfd['Station'])
+            print("initializing")
+            self.StationModel = TableModel(self.dfd['Station'])
             self.StationTableView.setModel(self.StationModel)
             self.stationproxymodel = QSortFilterProxyModel()
             self.stationproxymodel.setSourceModel(self.StationModel)
             self.StationTableView.setSortingEnabled(True)
             self.StationTableView.setModel(self.stationproxymodel)
-            self.delegate = InLineEditDelegate()
+            #self.delegate = InLineEditDelegate()
             self.StationTableView.setItemDelegate(self.delegate)
             self.StationTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
             self.StationTableView.customContextMenuRequested.connect(self.context_menu)
             self.StationTableView.verticalHeader().sectionClicked.connect(self.stationsel)
             self.statselmodel = QItemSelectionModel(self.StationModel)
+
+            self.stationselection = self.StationTableView.selectionModel()
+
             self.map_data(lat='latitude', lon='longitude')
-        if hasattr(MainWindow,'ResultModel') and 'Result' in dfd.keys():
-            self.ResultModel._data.append(dfd['Result'], ignore_index=True)
+        if hasattr(self,'ResultModel') and 'Result' in self.dfd.keys():
+            self.ResultModel._data = self.ResultModel._data.append(self.dfd['Result'], ignore_index=True)
         else:
-            self.ResultModel = TableModel(dfd['Result'])
+            self.ResultModel = TableModel(self.dfd['Result'].sort_values(['monitoringlocationid']))
             self.ResultTableView.setModel(self.ResultModel)
             self.resultproxymodel = QSortFilterProxyModel()
             self.resultproxymodel.setSourceModel(self.ResultModel)
             self.ResultTableView.setSortingEnabled(True)
             self.ResultTableView.setModel(self.resultproxymodel)
-            self.delegate = InLineEditDelegate()
+            #self.delegate = InLineEditDelegate()
             self.ResultTableView.setItemDelegate(self.delegate)
             self.ResultTableView.setItemDelegate(self.delegate)
             self.ResultTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-
+            self.ResultTableView.customContextMenuRequested.connect(self.context_menu)
             self.ResultTableView.verticalHeader().sectionClicked.connect(self.resultsel)
             self.resselmodel = QItemSelectionModel(self.ResultModel)
+            self.resultselection = self.ResultTableView.selectionModel()
 
-
-        if hasattr(MainWindow,'ActivityModel') and 'Activity' in dfd.keys():
-            self.ActivityModel._data.append(dfd['Activity'], ignore_index=True)
+        if hasattr(MainWindow,'ActivityModel') and 'Activity' in self.dfd.keys():
+            self.ActivityModel._data = self.ActivityModel._data.append(self.dfd['Activity'], ignore_index=True)
         else:
-            self.ActivityModel = TableModel(dfd['Activity'])
+            self.ActivityModel = TableModel(self.dfd['Activity'])
             self.ActivityTableView.setModel(self.ActivityModel)
             self.activityproxymodel = QSortFilterProxyModel()
             self.activityproxymodel.setSourceModel(self.ActivityModel)
             self.ActivityTableView.setSortingEnabled(True)
             self.ActivityTableView.setModel(self.activityproxymodel)
-            self.delegate = InLineEditDelegate()
+            #self.delegate = InLineEditDelegate()
             self.ActivityTableView.setItemDelegate(self.delegate)
             self.ActivityTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+            self.ActivityTableView.customContextMenuRequested.connect(self.context_menu)
             self.ActivityTableView.setItemDelegate(self.delegate)
 
             self.ActivityTableView.verticalHeader().sectionClicked.connect(self.activitysel)
             self.actselmodel = QItemSelectionModel(self.ActivityModel)
+            self.activityselection = self.ActivityTableView.selectionModel()
 
         self.clrBycomboBox.clear()
         self.clrBycomboBox.addItems(self.ActivityModel._data.columns)
@@ -400,13 +434,17 @@ class MainWindow(QtWidgets.QMainWindow):
             for col in range(df.shape[1]):
                 table.setItem(row, col, QTableWidgetItem(str(df_array[row, col])))
 
-    def map_data(self, sellist=None, lat = 'latitude',lon = 'longitude'):
+    def map_data(self, sellist = None, lat = 'latitude',lon = 'longitude'):
 
         m = folium.Map(location=[self.StationModel._data[lat].mean(),
                                  self.StationModel._data[lon].mean()],
                        tiles="Stamen Terrain", zoom_start=13)
 
         icons = {'Spring':'star-empty', 'Well':'heart-empty', 'Stream':'tint','Land':'globe'}
+        #items = self.StationTableView.selectionModel().selectedRows()
+        if hasattr(self.stationselection,'selectedRows'):
+            items = self.stationselection.selectedRows()
+            sellist = [i.row() for i in items]
 
         for i in self.StationModel._data.index:
             tooltip = i
@@ -419,6 +457,8 @@ class MainWindow(QtWidgets.QMainWindow):
                               icon=folium.Icon(color='red',
                                                icon=icons.get(self.StationModel._data.loc[i,'locationtype'],'bullseye'))
                               ).add_to(m)
+                sw = self.StationModel._data.iloc[sellist][[lat, lon]].min().values.tolist()
+                ne = self.StationModel._data.iloc[sellist][[lat, lon]].max().values.tolist()
             else:
                 folium.Marker([self.StationModel._data.loc[i, lat],
                                self.StationModel._data.loc[i, lon]],
@@ -428,10 +468,10 @@ class MainWindow(QtWidgets.QMainWindow):
                                                icon=icons.get(self.StationModel._data.loc[i,'locationtype'],'bullseye'))
                               ).add_to(m)
 
-        sw = self.StationModel._data[[lat, lon]].min().values.tolist()
-        ne = self.StationModel._data[[lat, lon]].max().values.tolist()
+                sw = self.StationModel._data[[lat, lon]].min().values.tolist()
+                ne = self.StationModel._data[[lat, lon]].max().values.tolist()
 
-        m.fit_bounds([sw, ne])
+            m.fit_bounds([sw, ne])
 
         data = io.BytesIO()
         m.save(data, close_file=False)
@@ -455,7 +495,7 @@ class MainWindow(QtWidgets.QMainWindow):
         wqxsde.piper(arrays, "title", use_color=True,
                      fig=self.sc.fig, ax=self.sc.axes)
         self.sc.draw()
-        self.map_data(sellist)
+        self.map_data()
 
     def add_all_piper(self):
         markers = ["s", "o", "^", "v", "+", "x"]
@@ -489,6 +529,7 @@ class MainWindow(QtWidgets.QMainWindow):
         cursor = QtGui.QCursor()
         menu.exec_(cursor.pos())
 
+    #def export_selected(self,model):
 
 
 def main():

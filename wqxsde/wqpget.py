@@ -338,7 +338,7 @@ class WQP(object):
         #    *df1[['characteristicname', 'resultvalue', 'resultunit']].apply(lambda x: self.parnorm(x), 1))
 
         df1['characteristicname'], df1['methodspeciation'], df1['resultunit'] = zip(
-            *df1[['characteristicname', 'resultunit']].apply(lambda x: self.makemethspec(x), 1))
+            *df1[['characteristicname', 'resultunit']].apply(lambda x: self.makemethspec(x),1))
 
         self.results = df1
 
@@ -418,8 +418,10 @@ class WQP(object):
         elif (p == 'phosphate' or p == 'orthophosphate') and u == 'mg/l as p':
             return 'Phosphate', 'as P', 'mg/l'
         else:
-            return x[0], None, x[1]
-
+            try:
+                return str(x[0]), None, str(x[1])
+            except ValueError:
+                print(str(x[0]), None, str(x[1]))
     def unitfix(self, x):
         """Standardizes unit labels from ug/l to mg/l
 
