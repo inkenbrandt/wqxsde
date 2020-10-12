@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>481</width>
-    <height>677</height>
+    <width>485</width>
+    <height>684</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -369,6 +369,37 @@
     </widget>
    </item>
    <item>
+    <widget class="QRadioButton" name="radioButton_3">
+     <property name="font">
+      <font>
+       <pointsize>12</pointsize>
+       <weight>75</weight>
+       <bold>true</bold>
+      </font>
+     </property>
+     <property name="text">
+      <string>ORGANIZATION</string>
+     </property>
+     <attribute name="buttonGroup">
+      <string notr="true">buttonGroup</string>
+     </attribute>
+    </widget>
+   </item>
+   <item>
+    <widget class="QComboBox" name="orgcombo">
+     <property name="currentText">
+      <string/>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="Line" name="line_3">
+     <property name="orientation">
+      <enum>Qt::Horizontal</enum>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QLabel" name="label_10">
      <property name="font">
       <font>
@@ -390,9 +421,28 @@
      <property name="frameShadow">
       <enum>QFrame::Raised</enum>
      </property>
-     <layout class="QFormLayout" name="formLayout_2">
-      <item row="1" column="0">
-       <widget class="QDateEdit" name="begdate">
+     <layout class="QGridLayout" name="gridLayout">
+      <item row="0" column="2">
+       <widget class="QLabel" name="label_12">
+        <property name="maximumSize">
+         <size>
+          <width>100</width>
+          <height>20</height>
+         </size>
+        </property>
+        <property name="text">
+         <string>End Date</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="1">
+       <widget class="QDateEdit" name="wqpbegdate">
+        <property name="maximumSize">
+         <size>
+          <width>100</width>
+          <height>50</height>
+         </size>
+        </property>
         <property name="dateTime">
          <datetime>
           <hour>0</hour>
@@ -425,27 +475,57 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="0">
+      <item row="0" column="1">
        <widget class="QLabel" name="label_11">
+        <property name="maximumSize">
+         <size>
+          <width>100</width>
+          <height>20</height>
+         </size>
+        </property>
         <property name="text">
          <string>Begin Date</string>
         </property>
        </widget>
       </item>
-      <item row="1" column="1">
-       <widget class="QDateEdit" name="enddate">
+      <item row="1" column="2">
+       <widget class="QDateEdit" name="wqpenddate">
         <property name="maximumSize">
          <size>
           <width>100</width>
-          <height>16777215</height>
+          <height>50</height>
          </size>
+        </property>
+        <property name="minimumDateTime">
+         <datetime>
+          <hour>0</hour>
+          <minute>0</minute>
+          <second>0</second>
+          <year>1800</year>
+          <month>9</month>
+          <day>14</day>
+         </datetime>
+        </property>
+        <property name="maximumDate">
+         <date>
+          <year>2500</year>
+          <month>12</month>
+          <day>31</day>
+         </date>
+        </property>
+        <property name="date">
+         <date>
+          <year>2025</year>
+          <month>10</month>
+          <day>1</day>
+         </date>
         </property>
        </widget>
       </item>
-      <item row="0" column="1">
-       <widget class="QLabel" name="label_12">
+      <item row="1" column="0">
+       <widget class="QCheckBox" name="wqpdatecheckbox">
         <property name="text">
-         <string>End Date</string>
+         <string>Enabled</string>
         </property>
        </widget>
       </item>

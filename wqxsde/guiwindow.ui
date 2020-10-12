@@ -19,6 +19,10 @@
   <property name="windowTitle">
    <string>Chem Tools</string>
   </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>flask-1075095_1280.png</normaloff>flask-1075095_1280.png</iconset>
+  </property>
   <widget class="QWidget" name="centralwidget">
    <property name="minimumSize">
     <size>
@@ -274,7 +278,7 @@
            <item>
             <widget class="QTabWidget" name="tabletabs">
              <property name="currentIndex">
-              <number>2</number>
+              <number>0</number>
              </property>
              <widget class="QWidget" name="StationTab_2">
               <attribute name="title">
@@ -405,9 +409,9 @@
           </property>
           <layout class="QHBoxLayout" name="horizontalLayout_3">
            <item>
-            <widget class="QPushButton" name="comparebutt">
+            <widget class="QPushButton" name="impwqpbutt">
              <property name="text">
-              <string>Compare SDE data to WQX</string>
+              <string>Import WQP Data</string>
              </property>
             </widget>
            </item>

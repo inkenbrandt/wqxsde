@@ -194,6 +194,10 @@ class WQPPage(QDialog):
         self.statecombo.addItems(self.states.keys())
         self.statecombo.currentTextChanged.connect(self.get_county)
 
+        jsn = requests.get("https://www.waterqualitydata.us/Codes/Organization?mimeType=json").json()['codes']
+        self.provdf = pd.DataFrame(jsn).set_index('desc')
+        self.orgcombo.addItems(sorted(self.provdf.index.values))
+
         self.punits = {'mi': 1, 'km': 0.621371, 'm': 0.000621371,  'ft': 0.000189394}
         self.distunitcombo.addItems(self.punits.keys())
         #self.distunitcombo.currentTextChanged.connect(self.get_dis)
@@ -207,7 +211,12 @@ class WQPPage(QDialog):
         if self.buttonGroup.checkedButton().text() == "DISTANCE FROM POINT":
 
             self.finaldis = self.punits[self.distunitcombo.currentText()] * self.distancespin.value()
-            self.wqpdata = wqxsde.WQP([self.finaldis,self.wqpypnt.value(),self.wqpxpnt.value()], 'rad')
+
+            if self.wqpdatecheckbox.isChecked():
+                dates = {'startDateLo':self.wqpbegdate.date().toString("MM-dd-yyyy"),
+                         'startDateHi':self.wqpenddate.date().toString("MM-dd-yyyy")}
+                self.wqpdata = wqxsde.WQP([self.finaldis, self.wqpypnt.value(), self.wqpxpnt.value()], 'rad',**dates)
+            self.wqpdata = wqxsde.WQP([self.finaldis, self.wqpypnt.value(), self.wqpxpnt.value()], 'rad')
         elif self.buttonGroup.checkedButton().text() == "BBOX":
             tlat = self.bbtoplat.value()
             tlon = self.bbtoplon.value()
@@ -215,11 +224,29 @@ class WQPPage(QDialog):
             blon = self.bbbotlon.value()
 
             print(f'{tlon},{tlat},{blon},{blat}')
-            self.wqpdata = wqxsde.WQP(f'{tlon},{blat},{blon},{tlat}','bBox')
+            if self.wqpdatecheckbox.isChecked():
+                dates = {'startDateLo':self.wqpbegdate.date().toString("MM-dd-yyyy"),
+                         'startDateHi':self.wqpenddate.date().toString("MM-dd-yyyy")}
+                self.wqpdata = wqxsde.WQP(f'{tlon},{blat},{blon},{tlat}','bBox',**dates)
+            self.wqpdata = wqxsde.WQP(f'{tlon},{blat},{blon},{tlat}', 'bBox')
         elif self.buttonGroup.checkedButton().text() == "COUNTY":
             st = f"{self.states[self.statecombo.currentText()]:02d}"
             co = self.countyfips[self.countycombo.currentText()]
+            if self.wqpdatecheckbox.isChecked():
+                dates = {'startDateLo':self.wqpbegdate.date().toString("MM-dd-yyyy"),
+                         'startDateHi':self.wqpenddate.date().toString("MM-dd-yyyy")}
+                self.wqpdata = wqxsde.WQP([st, co],'countyCd',**dates)
             self.wqpdata = wqxsde.WQP([st, co],'countyCd')
+        elif self.buttonGroup.checkedButton().text() == "ORGANIZATION":
+            org = self.provdf.loc[self.orgcombo.currentText(),'value']
+
+            if self.wqpdatecheckbox.isChecked():
+                dates = {'startDateLo':self.wqpbegdate.date().toString("MM-dd-yyyy"),
+                         'startDateHi':self.wqpenddate.date().toString("MM-dd-yyyy")}
+                self.wqpdata = wqxsde.WQP([org], 'organization')
+            self.wqpdata = wqxsde.WQP([org], 'organization')
+        #if self.wqpdatecheckbox.isChecked():
+        #    self.wqpdata.results = self.wqpdata.results[(self.wqpdata.results['sampledate']>=pd.to_datetime(self.wqpbegdate.selectedDate()))&(self.wqpdata.results['sampledate']<=pd.to_datetime(self.wqpenddate.selectedDate()))]
         self.accept()
 
     def get_county(self, value):
@@ -263,12 +290,16 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.actionFrom_SDE_requires_login.triggered.connect(self.executeLoginPage)
         self.actionDownload_Here.triggered.connect(self.executeWQPPage)
+        self.impwqpbutt.clicked.connect(self.executeWQPPage)
+        self.importsdebutt.clicked.connect(self.executeLoginPage)
 
         self.graphresultsbutt.clicked.connect(self.add_selected_piper)
         self.addallpipbutt.clicked.connect(self.add_all_piper)
         self.clearpipbutt.clicked.connect(self.clear_piper)
 
         self.importsdebutt.clicked.connect(self.executeLoginPage)
+        self.actionFrom_Water_Quality_Portal.triggered.connect(self.WQPmenuAction)
+        self.actionUGS_Data_in_the_WQP.triggered.connect(self.WQPmenuAction)
         #self.activityselection = self.ActivityTableView.selectionModel()
         #self.ActivityTableView.verticalHeader().sectionClicked.connect(self.testchange)
         #self.activityselection.modelChanged.connect(self.testchange)
@@ -327,6 +358,15 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.map_data(lat='latitude', lon='longitude')
         self.add_selected_piper()
+
+    def WQPmenuAction(self, s):
+        self.wqpdata = wqxsde.WQP(['UTAHGS'], 'organization')
+
+        self.dfd['Result'] = self.wqpdata.results
+        self.dfd['Station'] = self.wqpdata.stations
+        self.dfd['Activity'] = self.wqpdata.activities
+
+        self.add_data()
 
     def executeWQPPage(self, s):
         self.wqpdlg = WQPPage(self)
@@ -420,6 +460,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.clrBycomboBox.addItems(self.ActivityModel._data.columns)
         self.grpbycombo.clear()
         self.grpbycombo.addItems(self.ActivityModel._data.columns)
+
     # Takes a df and writes it to a qtable provided. df headers become qtable headers
     # https://stackoverflow.com/questions/31475965/fastest-way-to-populate-qtableview-from-pandas-data-frame
     def write_df_to_qtable(self, df, table):
