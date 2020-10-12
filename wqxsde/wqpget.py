@@ -342,7 +342,7 @@ class WQP(object):
         df1['characteristicname'], df1['methodspeciation'], df1['resultunit'] = zip(
             *df1[['characteristicname', 'resultunit']].apply(lambda x: self.makemethspec(x),1))
 
-        self.results = df1
+        self.results = df1.sort_values(['monitoringlocationid','sampledate'])
 
         return df1
 

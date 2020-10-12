@@ -28,7 +28,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 from matplotlib.figure import Figure
 import requests
 import pandas as pd
-
+import numpy as np
 
 class MplCanvas(FigureCanvasQTAgg):
 
@@ -315,21 +315,25 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             to_select_view = self.StationTableView
             to_select_selmodel = self.stationselection
-
+        to_select_view.clearSelection()
         role = Qt.DisplayRole
         mode = QItemSelectionModel.Select | QtCore.QItemSelectionModel.Rows
         # Pull dataframe of other table you are selecting from
         dfa = to_select_model._data
         # Selects matching records based on join field in other dataframe
-        dga = dfa[dfa[join_field].isin([selected_model.data(i, role) for i in indexes])]
+        #dga = dfa[dfa[join_field].isin([selected_model.data(i, role) for i in indexes])]
+        #print(dga[join_field],dga.index)
         amodel = to_select_view.model()
         aselection = QItemSelection()
+        #https://stackoverflow.com/questions/18199288/getting-the-integer-index-of-a-pandas-dataframe-row-fulfilling-a-condition
 
-        for i in dga.index:
-            to_select_view.selectRow(i)
-            amodel_index = amodel.index(i, 0)
-            # Select single row.
-            aselection.select(amodel_index, amodel_index)  # top left, bottom right identical
+        j = 0
+        for i in dfa[join_field].values:
+            if i in [selected_model.data(i, role) for i in indexes]:
+                amodel_index = amodel.index(j, 0)
+                # Select single row.
+                aselection.select(amodel_index, amodel_index)  # top left, bottom right identical
+            j += 1
         to_select_selmodel.select(aselection, mode)
 
     def resultsel(self, s):
@@ -422,7 +426,7 @@ class MainWindow(QtWidgets.QMainWindow):
         if hasattr(self,'ResultModel') and 'Result' in self.dfd.keys():
             self.ResultModel._data = self.ResultModel._data.append(self.dfd['Result'], ignore_index=True)
         else:
-            self.ResultModel = TableModel(self.dfd['Result'].sort_values(['monitoringlocationid']))
+            self.ResultModel = TableModel(self.dfd['Result'])
             self.ResultTableView.setModel(self.ResultModel)
             self.resultproxymodel = QSortFilterProxyModel()
             self.resultproxymodel.setSourceModel(self.ResultModel)
