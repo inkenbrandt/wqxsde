@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>400</width>
-    <height>264</height>
+    <height>244</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -68,21 +68,7 @@
          <item row="3" column="1">
           <widget class="QLineEdit" name="pwbox"/>
          </item>
-         <item row="4" column="1">
-          <widget class="QPushButton" name="pickSaveDir">
-           <property name="text">
-            <string>Choose Save Dir</string>
-           </property>
-          </widget>
-         </item>
         </layout>
-       </widget>
-      </item>
-      <item>
-       <widget class="QProgressBar" name="progressBar">
-        <property name="value">
-         <number>24</number>
-        </property>
        </widget>
       </item>
       <item>

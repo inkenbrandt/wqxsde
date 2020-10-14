@@ -60,6 +60,7 @@ class SDEconnect(object):
         connstr = f"postgresql+psycopg2://{self.user}:{self.password}@{host}:{port}/{db}"
         self.engine = create_engine(connstr, pool_recycle=3600)
 
+
     def get_sde_tables(self):
         """
         Pulls tables from the UGS sde database
@@ -129,14 +130,14 @@ class SDEconnect(object):
 
 
 class SDEtoWQX(SDEconnect):
-    def __init__(self, user, password, savedir):
+    def __init__(self, user, password):
         """
         Class to convert UGS Database data into EPA WQX format for upload;  This class uses UGS config 6441.
         :param savedir: location to save output files
         """
         # self.enviro = conn_file
         SDEconnect.__init__(self)
-        self.savedir = savedir
+        #self.savedir = savedir
         self.config_links = {}
         self.import_config_url = "https://cdx.epa.gov/WQXWeb/ImportConfigurationDetail.aspx?mode=import&impcfg_uid={:}"
         self.config_links['Station'] = self.import_config_url.format(6441)
@@ -182,8 +183,11 @@ class SDEtoWQX(SDEconnect):
 
         self.wqp_tabs = {}
         self.ugs_to_upload = {}
+        if self.engine:
+            pass
+        else:
+            self.start_engine(user, password)
 
-        self.start_engine(user, password)
         self.get_sde_tables()
         self.get_result_activity_sde()
         self.get_wqp_tables()
@@ -252,10 +256,10 @@ class SDEtoWQX(SDEconnect):
             self.ugs_to_upload['Station']['locationtype'] != 'Atmosphere']
         self.ugs_to_upload['Station'] = self.ugs_to_upload['Station'].sort_values("locationid")
 
-    def save_file(self):
-        for tab in self.tabnames.keys():
-            self.ugs_to_upload[tab].to_csv(f"{self.savedir}/sde_to_wqx_{tab}_{datetime.datetime.today():%Y%m%d}.csv",
-                                           index=False)
+    #def save_file(self):
+    #    for tab in self.tabnames.keys():
+    #        self.ugs_to_upload[tab].to_csv(f"{self.savedir}/sde_to_wqx_{tab}_{datetime.datetime.today():%Y%m%d}.csv",
+    #                                       index=False)
 
     def get_context(self, df):
         if pd.isnull(df['usgs_id']):

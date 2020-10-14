@@ -1,18 +1,21 @@
 # https://stackoverflow.com/questions/58590199/how-to-show-folium-map-inside-a-pyqt5-gui
 # https://stackoverflow.com/questions/57065370/how-do-i-make-a-split-window
 # https://stackoverflow.com/questions/60437182/how-to-include-folium-map-into-pyqt5-application-window?noredirect=1&lq=1
-
+# https://stackoverflow.com/questions/55310051/displaying-pandas-dataframe-in-qml/55310236#55310236
+# https://stackoverflow.com/questions/44603119/how-to-display-a-pandas-data-frame-with-pyqt5-pyside2?noredirect=1&lq=1
 # https://www.learnpyqt.com/courses/graphics-plotting/plotting-matplotlib/
 # https://www.learnpyqt.com/courses/model-views/qtableview-modelviews-numpy-pandas/
 # https://stackoverflow.com/questions/29734471/qtablewidget-current-selection-change-signal
 # https://wiki.python.org/moin/PyQt/Reading%20selections%20from%20a%20selection%20model
 # https://stackoverflow.com/questions/22577327/how-to-retrieve-the-selected-row-of-a-qtableview
+# https://github.com/vfxpipeline/Python-MongoDB-Example/blob/master/mongo_python.py
 #https://www.youtube.com/watch?v=Gpw6BygkUCw
+#import geopandas
 from PyQt5 import QtCore, QtWidgets, QtWebEngineWidgets, uic, QtGui
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.QtCore import *
-from qtwidgets import PasswordEdit
+#from qtwidgets import PasswordEdit
 
 import folium
 import io
@@ -28,7 +31,11 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 from matplotlib.figure import Figure
 import requests
 import pandas as pd
-import numpy as np
+#import numpy as np
+import time
+#from pyproj import datadir
+
+
 
 class MplCanvas(FigureCanvasQTAgg):
 
@@ -107,23 +114,24 @@ class TableModel(QtCore.QAbstractTableModel):
         return True
 
     def removeRows(self, position):
-        row_count = self.rowCount()
+        row_count = self.rowCount(position)
         row_count -= 1
         self.beginRemoveRows(QtCore.QModelIndex(), row_count, row_count)
         row_id = position.row()
-        document_id = self._data[row_id]['_id']
+        #document_id = self._data[row_id]['_id']
+        self._data = self._data.drop(self._data.index[row_id],axis=0)
         #databaseOperations.remove_data(document_id)
-        self.user_data.pop(row_id)
+        #self.user_data.pop(row_id)
         self.endRemoveRows()
 
     def context_menu(self):
         menu = QtWidgets.QMenu()
         add_data = menu.addAction("Add New Data")
-        add_data.setIcon(QtGui.QIcon(":/icons/images/add-icon.png"))
+        add_data.setIcon(QtGui.QIcon('tick.png'))
         add_data.triggered.connect(lambda: self.model.insertRows())
         if self.tableView.selectedIndexes():
             remove_data = menu.addAction("Remove Data")
-            remove_data.setIcon(QtGui.QIcon(":/icons/images/remove.png"))
+            remove_data.setIcon(QtGui.QIcon('cross.png'))
             remove_data.triggered.connect(lambda: self.model.removeRows(self.tableView.currentIndex()))
         cursor = QtGui.QCursor()
         menu.exec_(cursor.pos())
@@ -144,24 +152,17 @@ class LoginPage(QDialog):
         super(LoginPage, self).__init__(*args, **kwargs)
         uic.loadUi('sdelog.ui', self)
 
-        self.userpw = self.pwbox.text()
-        self.usernm = self.usernamebox.text()
-
-        self.pickSaveDir.clicked.connect(self.getfile)
-
         self.buttonBox.accepted.connect(self.acceptbutt)
         #self.buttonBox.accepted.connect(wqxsde.SDEtoWQX(usernm, userpw, self.name))
         self.buttonBox.rejected.connect(self.reject)
 
     def acceptbutt(self):
-        if self.name:
-            print('yes')
-            self.userpw = self.pwbox.text()
-            self.usernm = self.usernamebox.text()
-            self.chemdata = wqxsde.SDEtoWQX(self.usernm, self.userpw, self.name+"/test.csv")
+        self.completed = 0
+        print('yes')
+        self.userpw = self.pwbox.text()
+        self.usernm = self.usernamebox.text()
+        self.chemdata = wqxsde.SDEtoWQX(self.usernm, self.userpw)
 
-        else:
-            print('no', self.name, self.usernm)
         self.accept()
         #self.close()
 
@@ -243,7 +244,7 @@ class WQPPage(QDialog):
             if self.wqpdatecheckbox.isChecked():
                 dates = {'startDateLo':self.wqpbegdate.date().toString("MM-dd-yyyy"),
                          'startDateHi':self.wqpenddate.date().toString("MM-dd-yyyy")}
-                self.wqpdata = wqxsde.WQP([org], 'organization')
+                self.wqpdata = wqxsde.WQP([org], 'organization',**dates)
             self.wqpdata = wqxsde.WQP([org], 'organization')
         #if self.wqpdatecheckbox.isChecked():
         #    self.wqpdata.results = self.wqpdata.results[(self.wqpdata.results['sampledate']>=pd.to_datetime(self.wqpbegdate.selectedDate()))&(self.wqpdata.results['sampledate']<=pd.to_datetime(self.wqpenddate.selectedDate()))]
@@ -300,6 +301,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.importsdebutt.clicked.connect(self.executeLoginPage)
         self.actionFrom_Water_Quality_Portal.triggered.connect(self.WQPmenuAction)
         self.actionUGS_Data_in_the_WQP.triggered.connect(self.WQPmenuAction)
+        self.actionExport_Shapefile.triggered.connect(self.export_stations)
         #self.activityselection = self.ActivityTableView.selectionModel()
         #self.ActivityTableView.verticalHeader().sectionClicked.connect(self.testchange)
         #self.activityselection.modelChanged.connect(self.testchange)
@@ -398,8 +400,20 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             print("Cancel!")
 
+    def export_stations(self, crs = 'EPSG:4269'):
+        import geopandas
+        savename = QFileDialog.getSaveFileName(self, 'Save File',"","Shapefile (*.shp)")
+        gdf = geopandas.GeoDataFrame(
+            self.StationModel._data,
+            geometry=geopandas.points_from_xy(self.StationModel._data.longitude,
+                                              self.StationModel._data.latitude),) #crs=crs)
+        gdf.to_file(savename)
+
+
+
     def add_data(self):
         #TODO Prevent Duplication of Index
+        #TODO FIX CONTEXT MENU
         self.delegate = InLineEditDelegate()
         if hasattr(self,'StationModel') and 'Station' in self.dfd.keys():
             print("adding data")
@@ -416,7 +430,7 @@ class MainWindow(QtWidgets.QMainWindow):
             #self.delegate = InLineEditDelegate()
             self.StationTableView.setItemDelegate(self.delegate)
             self.StationTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            self.StationTableView.customContextMenuRequested.connect(self.context_menu)
+            self.StationTableView.customContextMenuRequested.connect(lambda: self.context_menu(self.StationModel))
             self.StationTableView.verticalHeader().sectionClicked.connect(self.stationsel)
             self.statselmodel = QItemSelectionModel(self.StationModel)
 
@@ -436,7 +450,7 @@ class MainWindow(QtWidgets.QMainWindow):
             self.ResultTableView.setItemDelegate(self.delegate)
             self.ResultTableView.setItemDelegate(self.delegate)
             self.ResultTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            self.ResultTableView.customContextMenuRequested.connect(self.context_menu)
+            self.ResultTableView.customContextMenuRequested.connect(lambda: self.context_menu(self.ResultModel))
             self.ResultTableView.verticalHeader().sectionClicked.connect(self.resultsel)
             self.resselmodel = QItemSelectionModel(self.ResultModel)
             self.resultselection = self.ResultTableView.selectionModel()
@@ -453,7 +467,7 @@ class MainWindow(QtWidgets.QMainWindow):
             #self.delegate = InLineEditDelegate()
             self.ActivityTableView.setItemDelegate(self.delegate)
             self.ActivityTableView.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
-            self.ActivityTableView.customContextMenuRequested.connect(self.context_menu)
+            self.ActivityTableView.customContextMenuRequested.connect(lambda: self.context_menu(self.ActivityModel))
             self.ActivityTableView.setItemDelegate(self.delegate)
 
             self.ActivityTableView.verticalHeader().sectionClicked.connect(self.activitysel)
@@ -562,20 +576,26 @@ class MainWindow(QtWidgets.QMainWindow):
         self.sc.axes.cla()
         self.sc.draw()
 
-    def context_menu(self):
+    def context_menu(self, model, view=None):
+        if hasattr(self, 'ActivityModel') and model == self.ActivityModel:
+            view = self.ActivityTableView
+        elif hasattr(self, 'ResultModel') and model == self.ResultModel:
+            view = self.ResultTableView
+        elif hasattr(self, 'StationModel') and model == self.StationModel:
+            view = self.StationTableView
+        else:
+            view = view
+
         menu = QtWidgets.QMenu()
         add_data = menu.addAction("Add New Data")
-        #add_data.setIcon(QtGui.QIcon(":/icons/images/add-icon.png"))
-        add_data.triggered.connect(lambda: self.model.insertRows())
-        if self.ResultTableView.selectedIndexes():
+        add_data.setIcon(QtGui.QIcon('tick.png'))
+        add_data.triggered.connect(lambda: model.insertRows())
+        if view.selectedIndexes():
             remove_data = menu.addAction("Remove Data")
-            #remove_data.setIcon(QtGui.QIcon(":/icons/images/remove.png"))
-            remove_data.triggered.connect(lambda: self.model.removeRows(self.tableView.currentIndex()))
+            remove_data.setIcon(QtGui.QIcon('cross.png'))
+            remove_data.triggered.connect(lambda: model.removeRows(view.currentIndex()))
         cursor = QtGui.QCursor()
         menu.exec_(cursor.pos())
-
-    #def export_selected(self,model):
-
 
 def main():
     app = QtWidgets.QApplication(sys.argv)
