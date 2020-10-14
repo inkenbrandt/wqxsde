@@ -1,6 +1,9 @@
 # wqxsde
 Tools to migrate data from Utah Public Health Laboratory output data to a custom ArcGIS SDE table to a format compatible with the EPA WQX uploader in CDX.
 
+![Screenshot of app](/screenshot.png)
+Format: ![Chemistry viewer](url)
+
 # Files
 ## Examples Folder
 `examples/ResultsExport.xlsx` - results downloaded from the WQX through the CDX
