@@ -10,7 +10,7 @@
 # https://stackoverflow.com/questions/22577327/how-to-retrieve-the-selected-row-of-a-qtableview
 # https://github.com/vfxpipeline/Python-MongoDB-Example/blob/master/mongo_python.py
 #https://www.youtube.com/watch?v=Gpw6BygkUCw
-#import geopandas
+
 from PyQt5 import QtCore, QtWidgets, QtWebEngineWidgets, uic, QtGui
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
@@ -20,6 +20,9 @@ from PyQt5.QtCore import *
 import folium
 import io
 import sys
+import geopandas
+import fiona
+import geopandas as gpd
 
 import wqxsde
 import matplotlib
@@ -31,10 +34,9 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg, NavigationTool
 from matplotlib.figure import Figure
 import requests
 import pandas as pd
-#import numpy as np
-import time
-#from pyproj import datadir
 
+# Enable fiona driver
+gpd.io.file.fiona.drvsupport.supported_drivers['KML'] = 'rw'
 
 
 class MplCanvas(FigureCanvasQTAgg):
@@ -80,8 +82,6 @@ class TableModel(QtCore.QAbstractTableModel):
         """
         if index.column() > -1:
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | QtCore.Qt.ItemIsEditable
-        #elif index.column() == 1:
-        #    return QtCore.Qt.DecorationRole
         else:
             return QtCore.Qt.ItemIsSelectable
 
@@ -400,16 +400,27 @@ class MainWindow(QtWidgets.QMainWindow):
         else:
             print("Cancel!")
 
-    def export_stations(self, crs = 'EPSG:4269'):
-        import geopandas
-        savename = QFileDialog.getSaveFileName(self, 'Save File',"","Shapefile (*.shp)")
+    def export_stations(self, crs = 'EPSG:4326'):
+
         gdf = geopandas.GeoDataFrame(
             self.StationModel._data,
             geometry=geopandas.points_from_xy(self.StationModel._data.longitude,
-                                              self.StationModel._data.latitude),) #crs=crs)
-        gdf.to_file(savename)
+                                              self.StationModel._data.latitude), crs=crs)
 
-
+        savename, svext = QFileDialog.getSaveFileName(self, 'Save File',
+                                                      filter="Shapefile (*.shp);;Google Earth (*.kml);;Geopackage (*.gpkg);;GeoJSON (*.geojson)")
+        print(savename,svext)
+        if svext == "Shapefile (*.shp)":
+            gdf.to_file(savename, driver="ESRI Shapefile")
+        elif svext == "Google Earth (*.kml)":
+            # Write file
+            with fiona.Env():
+                # Might throw a WARNING - CPLE_NotSupported in b'dataset sample_out.kml does not support layer creation option ENCODING'
+                gdf.to_file(savename, driver='KML')
+        elif svext == "Geopackage (*.gpkg)":
+            gdf.to_file(savename, layer='stations', driver="GPKG")
+        elif svext == "GeoJSON (*.geojson)":
+            gdf.to_file(savename, driver='GeoJSON')
 
     def add_data(self):
         #TODO Prevent Duplication of Index
